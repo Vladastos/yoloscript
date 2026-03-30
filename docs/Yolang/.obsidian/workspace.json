@@ -1,0 +1,212 @@
+{
+  "main": {
+    "id": "b93965d3e002eb89",
+    "type": "split",
+    "children": [
+      {
+        "id": "febd54ec87f8ddfe",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "0e75aa3b1ffecbda",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "spec/Spec Roadmap.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "Spec Roadmap"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "aef644461985a0a7",
+    "type": "split",
+    "children": [
+      {
+        "id": "73532602211d79f4",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "8bfd5d30c7d4cf35",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "3c28b3a1a5b3d6d0",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "fdad95e16571bab6",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "6bf3b44ac86bccf3",
+    "type": "split",
+    "children": [
+      {
+        "id": "fcb26a8940e0c009",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "f414dfde38b0416d",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "spec/Spec Roadmap.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for Spec Roadmap"
+            }
+          },
+          {
+            "id": "e43388e91a641b73",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "spec/Spec Roadmap.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from Spec Roadmap"
+            }
+          },
+          {
+            "id": "08e6279cd4f42283",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "0979e3870b0969c4",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "90781a1627b1547c",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "spec/Spec Roadmap.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of Spec Roadmap"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "0e75aa3b1ffecbda",
+  "lastOpenFiles": [
+    "spec/Language Spec.md",
+    "decisions/0000-template.md",
+    "spec/Spec Roadmap.md",
+    "decisions/README.md",
+    "decisions",
+    "Welcome.md",
+    "spec/Spec Roadmap.md.tmp.5.1774901452003",
+    "spec/Language Spec.md.tmp.5.1774900774907",
+    "Readme.md.tmp.5.1774899981329",
+    "tasks/Remove environment cloning on new scope.md",
+    "tasks/Remove environment cloning on new scope.md.tmp.5.1774899969186",
+    "tasks/Index.md",
+    "tasks/Index.md.tmp.5.1774899956975",
+    "implementation/Roadmap.md",
+    "implementation/Roadmap.md.tmp.5.1774899944857",
+    "implementation/Interpreter.md",
+    "implementation/Interpreter.md.tmp.5.1774899928769",
+    "implementation/Parser.md",
+    "implementation/Parser.md.tmp.5.1774899900785",
+    "implementation/Scanner.md",
+    "implementation/Scanner.md.tmp.5.1774899880755",
+    "implementation/Architecture.md",
+    "Readme.md"
+  ]
+}
