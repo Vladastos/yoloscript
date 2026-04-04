@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "spec/Spec Roadmap.md",
+                "file": "Readme.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Spec Roadmap"
+              "title": "Readme"
             }
           }
         ]
@@ -94,7 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "spec/Spec Roadmap.md",
+                "file": "Readme.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -104,7 +104,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for Spec Roadmap"
+              "title": "Backlinks for Readme"
             }
           },
           {
@@ -113,12 +113,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "spec/Spec Roadmap.md",
+                "file": "Readme.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Outgoing links from Spec Roadmap"
+              "title": "Outgoing links from Readme"
             }
           },
           {
@@ -156,13 +156,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "spec/Spec Roadmap.md",
+                "file": "Readme.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of Spec Roadmap"
+              "title": "Outline of Readme"
             }
           }
         ]
@@ -183,30 +183,31 @@
       "bases:Create new base": false
     }
   },
-  "active": "0e75aa3b1ffecbda",
+  "active": "8bfd5d30c7d4cf35",
   "lastOpenFiles": [
-    "spec/Language Spec.md",
-    "decisions/0000-template.md",
+    "decisions/0001-v0.1-feature-set.md",
     "spec/Spec Roadmap.md",
+    "spec/Language Spec.md",
+    "spec/Spec Roadmap.md.tmp.5.1775310660875",
+    "spec/Spec Roadmap.md.tmp.5.1775310645442",
+    "spec/Spec Roadmap.md.tmp.5.1775310638881",
+    "spec/Spec Roadmap.md.tmp.5.1775310631834",
+    "spec/Spec Roadmap.md.tmp.5.1775310625957",
+    "spec/Spec Roadmap.md.tmp.5.1775310620423",
+    "spec/Spec Roadmap.md.tmp.5.1775310611469",
+    "spec/Spec Roadmap.md.tmp.5.1775310604306",
+    "spec/Spec Roadmap.md.tmp.5.1775310598023",
+    "spec/Spec Roadmap.md.tmp.5.1775310591603",
+    "decisions/0000-template.md",
+    "Readme.md",
     "decisions/README.md",
-    "decisions",
     "Welcome.md",
-    "spec/Spec Roadmap.md.tmp.5.1774901452003",
-    "spec/Language Spec.md.tmp.5.1774900774907",
-    "Readme.md.tmp.5.1774899981329",
     "tasks/Remove environment cloning on new scope.md",
-    "tasks/Remove environment cloning on new scope.md.tmp.5.1774899969186",
     "tasks/Index.md",
-    "tasks/Index.md.tmp.5.1774899956975",
     "implementation/Roadmap.md",
-    "implementation/Roadmap.md.tmp.5.1774899944857",
     "implementation/Interpreter.md",
-    "implementation/Interpreter.md.tmp.5.1774899928769",
     "implementation/Parser.md",
-    "implementation/Parser.md.tmp.5.1774899900785",
     "implementation/Scanner.md",
-    "implementation/Scanner.md.tmp.5.1774899880755",
-    "implementation/Architecture.md",
-    "Readme.md"
+    "implementation/Architecture.md"
   ]
 }

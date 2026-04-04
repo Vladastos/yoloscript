@@ -1,0 +1,88 @@
+// 08 — Error handling
+// Covers: Result<T,E>, ? operator (error propagation, matching error types),
+//         Perhaps<T>, .yolo() panic, nested error propagation.
+
+fun parse_positive(s: String) -> Result<Int, String> {
+    // pretend parsing: accept only "1" through "5" for simplicity
+    match s {
+        "1" => Result::Ok { value: 1 },
+        "2" => Result::Ok { value: 2 },
+        "3" => Result::Ok { value: 3 },
+        "4" => Result::Ok { value: 4 },
+        "5" => Result::Ok { value: 5 },
+        _   => Result::Err { error: "not a recognised digit: " + s },
+    }
+}
+
+fun double_parsed(s: String) -> Result<Int, String> {
+    let n = parse_positive(s)?;   // propagates Err early
+    return Result::Ok { value: n * 2 };
+}
+
+fun sum_parsed(a: String, b: String) -> Result<Int, String> {
+    let x = parse_positive(a)?;
+    let y = parse_positive(b)?;
+    return Result::Ok { value: x + y };
+}
+
+fun lookup(arr: String[], index: Int) -> Perhaps<String> {
+    if (index < 0 || index >= array_len(arr)) {
+        return nope;
+    }
+    return arr[index];
+}
+
+fun main() {
+    // --- basic Result match ---
+    match parse_positive("3") {
+        Result::Ok { value } => println("ok: " + int_to_string(value)),   // ok: 3
+        Result::Err { error } => println("err: " + error),
+    }
+    match parse_positive("x") {
+        Result::Ok { value } => println("ok: " + int_to_string(value)),
+        Result::Err { error } => println("err: " + error),               // err: not a recognised digit: x
+    }
+
+    // --- ? propagation ---
+    match double_parsed("4") {
+        Result::Ok { value } => println(int_to_string(value)),            // 8
+        Result::Err { error } => println("err: " + error),
+    }
+    match double_parsed("z") {
+        Result::Ok { value } => println(int_to_string(value)),
+        Result::Err { error } => println("err: " + error),               // err: not a recognised digit: z
+    }
+
+    // --- chained ? ---
+    match sum_parsed("2", "3") {
+        Result::Ok { value } => println(int_to_string(value)),            // 5
+        Result::Err { error } => println("err: " + error),
+    }
+    match sum_parsed("2", "bad") {
+        Result::Ok { value } => println(int_to_string(value)),
+        Result::Err { error } => println("err: " + error),               // err: not a recognised digit: bad
+    }
+
+    // --- Perhaps and lookup ---
+    let items: String[] = ["apple", "banana", "cherry"];
+
+    match lookup(items, 1) {
+        Perhaps::Some { value } => println(value),                        // banana
+        Perhaps::Nope => println("not found"),
+    }
+    match lookup(items, 10) {
+        Perhaps::Some { value } => println(value),
+        Perhaps::Nope => println("not found"),                            // not found
+    }
+
+    // --- .yolo() on a present value ---
+    let fruit = lookup(items, 0).yolo();
+    println(fruit);   // apple
+
+    // --- match used as expression on Result ---
+    let verdict = match sum_parsed("1", "5") {
+        Result::Ok { value } => "sum=" + int_to_string(value),
+        Result::Err { error } => "failed",
+    };
+    println(verdict);   // sum=6
+}

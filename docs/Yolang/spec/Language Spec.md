@@ -103,6 +103,7 @@ nope
 | Logical        | `&&` (`and`)  `\|\|` (`or`)  `!`             |
 | Assignment     | `=`                                          |
 | Range          | `..`  `..=`                                  |
+| Type cast      | `as`                                         |
 | Error propagation | `?`                                       |
 | Type ascription | `:`                                         |
 | Return type    | `->`                                         |
@@ -139,16 +140,59 @@ let name = "Vlad";    // inferred: String
 let y: Float = 3.14;  // explicit annotation
 ```
 
-### 3.3 Generics
+### 3.3 Array type
+
+`Array<T>` is the built-in ordered sequence type. It can also be written using the shorthand `T[]`.
+
+```yolo
+let nums: Int[] = [1, 2, 3];
+let names: Array<String> = ["alice", "bob"];
+```
+
+Both forms are equivalent. `T[]` is the preferred shorthand in practice.
+
+Index access uses `[]` with an `Int` index. Out-of-bounds access causes a panic.
+
+```yolo
+let first = nums[0];
+```
+
+Arrays are usable in `for-in` loops:
+
+```yolo
+for (let n in nums) {
+    println(int_to_string(n));
+}
+```
+
+`List<T>` is a higher-level resizable collection type provided by the standard library, built on top of `Array<T>`. It is pre-imported in v0.1 and available without a `use` declaration.
+
+### 3.4 Type casting (`as`)
+
+The `as` operator casts between numeric primitive types. It desugars to a call to the `From` trait, making it infallible — the result is the target type directly, with no wrapping in `Result`.
+
+```yolo
+let x: Int = 42;
+let f: Float = x as Float;
+
+let f2: Float = 3.99;
+let i: Int = f2 as Int;  // truncates toward zero
+```
+
+Allowed primitive casts in v0.1: `Int` ↔ `Float`.
+
+Because `as` desugars to `From`, user-defined types can also become castable by implementing `From<SourceType>` for the target type.
+
+### 3.5 Generics
 
 Types and functions can be parameterized with generic type parameters using `<T>` syntax.
 
 ```yolo
 struct Stack<T> {
-    items: List<T>,
+    items: T[],
 }
 
-fun first<T>(list: List<T>) -> Perhaps<T> {
+fun first<T>(arr: T[]) -> Perhaps<T> {
     // ...
 }
 ```
@@ -678,7 +722,8 @@ The following builtins and stdlib modules are planned. None are final.
 
 - **`math`** — `floor`, `ceil`, `abs`, `sqrt`, `pow`, `min`, `max`
 - **`string`** — `len`, `split`, `trim`, `contains`, `to_upper`, `to_lower`
-- **`list`** — `push`, `pop`, `len`, `map`, `filter`, `fold`
+- **`array`** — built-in; `array_push`, `array_len` available globally (see §3.3)
+- **`list`** — stdlib `List<T>` built on `Array<T>`; `push`, `pop`, `len`, `map`, `filter`, `fold`
 - **`io`** — `read_line`, `read_file`, `write_file`
 
 ---
@@ -699,17 +744,19 @@ The following builtins and stdlib modules are planned. None are final.
 
 This section records key decisions and their rationale for future reference.
 
-| Decision | Choice | Rationale |
-|---|---|---|
-| Null handling | `Perhaps<T>` / `nope` | Forces explicit handling of absence at the type level |
-| Error handling | `Result<T, E>` | Errors are values; no hidden control flow from exceptions |
-| No classes | Structs + traits | Cleaner separation of data and behavior; avoids inheritance complexity |
-| Enums | ADTs with data-carrying variants | Enables `Perhaps`, `Result`, and expressive domain modeling |
-| Type inference | Local inference, annotated boundaries | Reduces noise without sacrificing clarity at API boundaries |
-| Memory | Reference counting (runtime) | Simpler implementation; no ownership semantics exposed to the user |
-| Void return | Omit `->` annotation | Less noise; `()` only appears when explicitly needed as a type argument |
-| Generic syntax | `<T>` (Rust-style) | Consistent with the overall Rust-inspired aesthetic |
-| Function keyword | `fun` | Carried over from the original language |
-| Mutability | `let` / `mut` | Carried over; consistent with the immutability-by-default philosophy |
-| For loops | C-style + for-in | C-style carried over; for-in added for iterator ergonomics |
-| Pattern matching | `match` (Rust-style) | Natural fit for ADTs and `Perhaps`/`Result` handling |
+| Decision         | Choice                                | Rationale                                                               |
+| ---------------- | ------------------------------------- | ----------------------------------------------------------------------- |
+| Null handling    | `Perhaps<T>` / `nope`                 | Forces explicit handling of absence at the type level                   |
+| Error handling   | `Result<T, E>`                        | Errors are values; no hidden control flow from exceptions               |
+| No classes       | Structs + traits                      | Cleaner separation of data and behavior; avoids inheritance complexity  |
+| Enums            | ADTs with data-carrying variants      | Enables `Perhaps`, `Result`, and expressive domain modeling             |
+| Type inference   | Local inference, annotated boundaries | Reduces noise without sacrificing clarity at API boundaries             |
+| Memory           | Reference counting (runtime)          | Simpler implementation; no ownership semantics exposed to the user      |
+| Void return      | Omit `->` annotation                  | Less noise; `()` only appears when explicitly needed as a type argument |
+| Generic syntax   | `<T>` (Rust-style)                    | Consistent with the overall Rust-inspired aesthetic                     |
+| Array type       | `Array<T>` / `T[]` (built-in)         | Consistent with mainstream language conventions; `List<T>` is stdlib    |
+| Type casting     | `as` desugars to `From`               | Infallible casts; user types become castable by implementing `From<T>`  |
+| Function keyword | `fun`                                 | Carried over from the original language                                 |
+| Mutability       | `let` / `mut`                         | Carried over; consistent with the immutability-by-default philosophy    |
+| For loops        | C-style + for-in                      | C-style carried over; for-in added for iterator ergonomics              |
+| Pattern matching | `match` (Rust-style)                  | Natural fit for ADTs and `Perhaps`/`Result` handling                    |

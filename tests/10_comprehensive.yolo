@@ -1,0 +1,220 @@
+// 10 — Comprehensive integration test
+// A small but realistic program that exercises most features together:
+// a stack data structure, a simple expression evaluator, and a task list.
+
+// -------------------------------------------------------------------------
+// Stack<T> — generic stack built on Array
+// -------------------------------------------------------------------------
+
+struct Stack<T> {
+    items: T[],
+}
+
+impl Stack<Int> {
+    fun new() -> Stack<Int> {
+        return Stack { items: [] };
+    }
+
+    fun push(mut self, value: Int) {
+        array_push(self.items, value);
+    }
+
+    fun pop(mut self) -> Perhaps<Int> {
+        let len = array_len(self.items);
+        if (len == 0) {
+            return nope;
+        }
+        let top = self.items[len - 1];
+        // rebuild without last element
+        mut new_items: Int[] = [];
+        mut i = 0;
+        while (i < len - 1) {
+            array_push(new_items, self.items[i]);
+            i += 1;
+        }
+        self.items = new_items;
+        return top;
+    }
+
+    fun peek(self) -> Perhaps<Int> {
+        let len = array_len(self.items);
+        if (len == 0) {
+            return nope;
+        }
+        return self.items[len - 1];
+    }
+
+    fun size(self) -> Int {
+        return array_len(self.items);
+    }
+
+    fun is_empty(self) -> Bool {
+        return array_len(self.items) == 0;
+    }
+}
+
+// -------------------------------------------------------------------------
+// Token — simple expression tokenizer result
+// -------------------------------------------------------------------------
+
+enum Token {
+    Number { value: Int },
+    Plus,
+    Minus,
+    Times,
+}
+
+fun token_to_string(t: Token) -> String {
+    match t {
+        Token::Number { value } => int_to_string(value),
+        Token::Plus  => "+",
+        Token::Minus => "-",
+        Token::Times => "*",
+    }
+}
+
+// -------------------------------------------------------------------------
+// Task list
+// -------------------------------------------------------------------------
+
+enum Priority {
+    High,
+    Medium,
+    Low,
+}
+
+struct Task {
+    title: String,
+    done: Bool,
+    priority: Priority,
+}
+
+impl Task {
+    fun new(title: String, priority: Priority) -> Task {
+        return Task { title: title, done: false, priority: priority };
+    }
+
+    fun complete(mut self) {
+        self.done = true;
+    }
+
+    fun priority_label(self) -> String {
+        match self.priority {
+            Priority::High   => "[HIGH]",
+            Priority::Medium => "[MED] ",
+            Priority::Low    => "[LOW] ",
+        }
+    }
+
+    fun to_string(self) -> String {
+        let status = if (self.done) { "✓" } else { "○" };
+        return status + " " + self.priority_label() + " " + self.title;
+    }
+}
+
+fun count_done(tasks: Task[]) -> Int {
+    mut n = 0;
+    for (let t in tasks) {
+        if (t.done) { n += 1; }
+    }
+    return n;
+}
+
+// -------------------------------------------------------------------------
+// Main
+// -------------------------------------------------------------------------
+
+fun main() {
+    // --- Stack ---
+    mut s = Stack::new();
+    println(bool_to_string(s.is_empty()));   // true
+
+    s.push(10);
+    s.push(20);
+    s.push(30);
+    println(int_to_string(s.size()));        // 3
+
+    match s.peek() {
+        Perhaps::Some { value } => println(int_to_string(value)),   // 30
+        Perhaps::Nope => println("empty"),
+    }
+
+    match s.pop() {
+        Perhaps::Some { value } => println(int_to_string(value)),   // 30
+        Perhaps::Nope => println("empty"),
+    }
+    println(int_to_string(s.size()));        // 2
+
+    match s.pop() {
+        Perhaps::Some { value } => println(int_to_string(value)),   // 20
+        Perhaps::Nope => println("empty"),
+    }
+    match s.pop() {
+        Perhaps::Some { value } => println(int_to_string(value)),   // 10
+        Perhaps::Nope => println("empty"),
+    }
+    match s.pop() {
+        Perhaps::Some { value } => println(int_to_string(value)),
+        Perhaps::Nope => println("stack empty"),                     // stack empty
+    }
+
+    // --- Tokens ---
+    let tokens: Token[] = [
+        Token::Number { value: 3 },
+        Token::Times,
+        Token::Number { value: 4 },
+        Token::Plus,
+        Token::Number { value: 5 },
+    ];
+
+    mut token_str = "";
+    mut first = true;
+    for (let tok in tokens) {
+        if (!first) { token_str = token_str + " "; }
+        token_str = token_str + token_to_string(tok);
+        first = false;
+    }
+    println(token_str);   // 3 * 4 + 5
+
+    // --- Tasks ---
+    mut tasks: Task[] = [
+        Task::new("Write interpreter", Priority::High),
+        Task::new("Write tests", Priority::High),
+        Task::new("Update docs", Priority::Medium),
+        Task::new("Pick a logo", Priority::Low),
+    ];
+
+    // complete some tasks
+    tasks[0].complete();
+    tasks[1].complete();
+
+    for (let t in tasks) {
+        println(t.to_string());
+    }
+    // ✓ [HIGH]  Write interpreter
+    // ✓ [HIGH]  Write tests
+    // ○ [MED]   Update docs
+    // ○ [LOW]   Pick a logo
+
+    let done = count_done(tasks);
+    let total = array_len(tasks);
+    println(int_to_string(done) + "/" + int_to_string(total) + " done");  // 2/4 done
+
+    // --- closures + arrays together ---
+    let multipliers: Int[] = [1, 2, 3, 4, 5];
+    let base = 7;
+    mut products: Int[] = [];
+    for (let m in multipliers) {
+        array_push(products, m * base);
+    }
+    for (let p in products) {
+        print(int_to_string(p) + " ");   // 7 14 21 28 35
+    }
+    println("");
+
+    // --- as casting in a calculation ---
+    let items_count = 3;
+    let total_score: Float = 10.0 + 20.0 + 30.0;
+    let average = total_score / (items_count as Float);
+    println(float_to_string(average));   // 20.0
+}

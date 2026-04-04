@@ -1,0 +1,124 @@
+// 06 — Traits
+// Covers: trait definition, impl Trait for Type, default methods, trait bounds
+//         in generic functions, Self type.
+
+trait Describable {
+    fun describe(self) -> String;
+}
+
+trait Comparable {
+    fun compare(self, other: Self) -> Int;  // <0 less, 0 equal, >0 greater
+
+    // default method built on top of compare
+    fun is_less_than(self, other: Self) -> Bool {
+        return self.compare(other) < 0;
+    }
+
+    fun is_equal_to(self, other: Self) -> Bool {
+        return self.compare(other) == 0;
+    }
+}
+
+// --- a simple value type ---
+
+struct Temperature {
+    celsius: Float,
+}
+
+impl Temperature {
+    fun new(c: Float) -> Temperature {
+        return Temperature { celsius: c };
+    }
+
+    fun to_fahrenheit(self) -> Float {
+        return self.celsius * 1.8 + 32.0;
+    }
+}
+
+impl Describable for Temperature {
+    fun describe(self) -> String {
+        return float_to_string(self.celsius) + "°C";
+    }
+}
+
+impl Comparable for Temperature {
+    fun compare(self, other: Temperature) -> Int {
+        if (self.celsius < other.celsius) { return -1; }
+        if (self.celsius > other.celsius) { return 1; }
+        return 0;
+    }
+}
+
+// --- another type implementing the same traits ---
+
+struct Score {
+    points: Int,
+    label: String,
+}
+
+impl Score {
+    fun new(points: Int, label: String) -> Score {
+        return Score { points: points, label: label };
+    }
+}
+
+impl Describable for Score {
+    fun describe(self) -> String {
+        return self.label + ": " + int_to_string(self.points);
+    }
+}
+
+impl Comparable for Score {
+    fun compare(self, other: Score) -> Int {
+        if (self.points < other.points) { return -1; }
+        if (self.points > other.points) { return 1; }
+        return 0;
+    }
+}
+
+// --- generic functions with trait bounds ---
+
+fun print_description<T: Describable>(item: T) {
+    println(item.describe());
+}
+
+fun max_of<T: Comparable>(a: T, b: T) -> T {
+    if (a.compare(b) >= 0) {
+        return a;
+    }
+    return b;
+}
+
+fun main() {
+    let freezing = Temperature::new(0.0);
+    let boiling  = Temperature::new(100.0);
+    let body     = Temperature::new(37.0);
+
+    // --- trait method ---
+    print_description(freezing);          // 0.0°C
+    print_description(boiling);           // 100.0°C
+
+    // --- default trait methods ---
+    println(bool_to_string(freezing.is_less_than(boiling)));   // true
+    println(bool_to_string(boiling.is_less_than(freezing)));   // false
+    println(bool_to_string(freezing.is_equal_to(freezing)));   // true
+
+    // --- generic max ---
+    let hotter = max_of(freezing, boiling);
+    println(hotter.describe());           // 100.0°C
+
+    // --- same generic function with a different type ---
+    let s1 = Score::new(42, "Alice");
+    let s2 = Score::new(99, "Bob");
+    let s3 = Score::new(42, "Carol");
+
+    print_description(s1);               // Alice: 42
+    print_description(s2);              // Bob: 99
+
+    let winner = max_of(s1, s2);
+    println(winner.describe());          // Bob: 99
+
+    // --- default methods on Score ---
+    println(bool_to_string(s1.is_equal_to(s3)));   // true (same points)
+    println(bool_to_string(s1.is_less_than(s2)));   // true
+}

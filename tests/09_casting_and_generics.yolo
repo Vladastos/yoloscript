@@ -1,0 +1,110 @@
+// 09 — Casting and generics
+// Covers: as (Int->Float, Float->Int truncation), generic structs,
+//         generic functions with multiple type params, where clauses,
+//         inline trait bounds.
+
+trait Display {
+    fun display(self) -> String;
+}
+
+struct Box<T> {
+    value: T,
+}
+
+impl Box<Int> {
+    fun new(v: Int) -> Box<Int> {
+        return Box { value: v };
+    }
+}
+
+impl Box<String> {
+    fun new(v: String) -> Box<String> {
+        return Box { value: v };
+    }
+}
+
+impl Display for Box<Int> {
+    fun display(self) -> String {
+        return "Box(" + int_to_string(self.value) + ")";
+    }
+}
+
+impl Display for Box<String> {
+    fun display(self) -> String {
+        return "Box(" + self.value + ")";
+    }
+}
+
+struct Pair<A, B> {
+    first: A,
+    second: B,
+}
+
+impl Pair<Int, Float> {
+    fun new(a: Int, b: Float) -> Pair<Int, Float> {
+        return Pair { first: a, second: b };
+    }
+
+    // cast first to Float for arithmetic
+    fun sum_as_float(self) -> Float {
+        let a_float: Float = self.first as Float;
+        return a_float + self.second;
+    }
+}
+
+fun show<T: Display>(item: T) {
+    println(item.display());
+}
+
+fun swap<A, B>(p: Pair<A, B>) -> Pair<B, A> {
+    return Pair { first: p.second, second: p.first };
+}
+
+fun clamp(value: Float, lo: Float, hi: Float) -> Float {
+    if (value < lo) { return lo; }
+    if (value > hi) { return hi; }
+    return value;
+}
+
+fun main() {
+    // --- Int -> Float cast ---
+    let i = 7;
+    let f: Float = i as Float;
+    println(float_to_string(f));          // 7.0
+
+    // --- Float -> Int cast (truncates toward zero) ---
+    let pi: Float = 3.99;
+    let truncated: Int = pi as Int;
+    println(int_to_string(truncated));    // 3
+
+    let neg: Float = -2.7;
+    let neg_int: Int = neg as Int;
+    println(int_to_string(neg_int));      // -2  (truncates toward zero)
+
+    // --- as used in arithmetic ---
+    let count = 3;
+    let total: Float = 10.0;
+    let avg = total / (count as Float);
+    println(float_to_string(avg));        // 3.3333...
+
+    // --- generic Box ---
+    let bi = Box::new(42);
+    let bs = Box::new("hello");
+    show(bi);    // Box(42)
+    show(bs);    // Box(hello)
+
+    // --- Pair with cast in method ---
+    let p = Pair::new(3, 1.5);
+    println(float_to_string(p.sum_as_float()));   // 4.5
+
+    // --- swap generic pair (Pair<String, Int>) ---
+    let sp: Pair<String, Int> = Pair { first: "world", second: 99 };
+    let swapped = swap(sp);
+    println(int_to_string(swapped.first));   // 99
+    println(swapped.second);                 // world
+
+    // --- clamp ---
+    println(float_to_string(clamp(5.0, 0.0, 10.0)));   // 5.0
+    println(float_to_string(clamp(-3.0, 0.0, 10.0)));  // 0.0
+    println(float_to_string(clamp(15.0, 0.0, 10.0)));  // 10.0
+}

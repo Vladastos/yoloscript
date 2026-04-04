@@ -1,0 +1,97 @@
+// 04 — Structs and impl blocks
+// Covers: struct definition, instantiation, field access, methods (self),
+//         mut self, associated functions (constructors), generic structs.
+
+struct Point {
+    x: Float,
+    y: Float,
+}
+
+impl Point {
+    fun new(x: Float, y: Float) -> Point {
+        return Point { x: x, y: y };
+    }
+
+    fun to_string(self) -> String {
+        return "(" + float_to_string(self.x) + ", " + float_to_string(self.y) + ")";
+    }
+
+    fun translate(mut self, dx: Float, dy: Float) {
+        self.x = self.x + dx;
+        self.y = self.y + dy;
+    }
+
+    fun distance_to(self, other: Point) -> Float {
+        let dx = self.x - other.x;
+        let dy = self.y - other.y;
+        // manual sqrt approximation via Newton's method for test purposes
+        let sq = dx * dx + dy * dy;
+        return sq;   // returning squared distance to avoid needing stdlib sqrt
+    }
+}
+
+struct Pair<A, B> {
+    first: A,
+    second: B,
+}
+
+impl Pair<Int, String> {
+    fun new(a: Int, b: String) -> Pair<Int, String> {
+        return Pair { first: a, second: b };
+    }
+
+    fun describe(self) -> String {
+        return int_to_string(self.first) + " -> " + self.second;
+    }
+}
+
+struct Counter {
+    value: Int,
+}
+
+impl Counter {
+    fun new() -> Counter {
+        return Counter { value: 0 };
+    }
+
+    fun increment(mut self) {
+        self.value += 1;
+    }
+
+    fun reset(mut self) {
+        self.value = 0;
+    }
+
+    fun get(self) -> Int {
+        return self.value;
+    }
+}
+
+fun main() {
+    // --- basic construction and field access ---
+    let p = Point::new(3.0, 4.0);
+    println(p.to_string());              // (3.0, 4.0)
+    println(float_to_string(p.x));      // 3.0
+
+    // --- mut self method ---
+    mut q = Point::new(0.0, 0.0);
+    q.translate(5.0, 7.0);
+    println(q.to_string());             // (5.0, 7.0)
+
+    // --- method returning a value ---
+    let sq_dist = p.distance_to(Point::new(0.0, 0.0));
+    println(float_to_string(sq_dist));  // 25.0  (3²+4²)
+
+    // --- generic struct ---
+    let pair = Pair::new(42, "hello");
+    println(pair.describe());           // 42 -> hello
+
+    // --- counter with mut self ---
+    mut ctr = Counter::new();
+    ctr.increment();
+    ctr.increment();
+    ctr.increment();
+    println(int_to_string(ctr.get())); // 3
+    ctr.reset();
+    println(int_to_string(ctr.get())); // 0
+}

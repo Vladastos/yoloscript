@@ -1,0 +1,104 @@
+// 07 — Arrays and tuples
+// Covers: array literals, T[] type syntax, Array<T> syntax, index access,
+//         array_push, array_len, for-in, tuple literals, tuple type syntax,
+//         positional access (.0 .1), tuple destructuring in match.
+
+fun sum(arr: Int[]) -> Int {
+    mut total = 0;
+    for (let n in arr) {
+        total += n;
+    }
+    return total;
+}
+
+fun reverse(arr: Int[]) -> Int[] {
+    mut result: Int[] = [];
+    mut i = array_len(arr) - 1;
+    while (i >= 0) {
+        array_push(result, arr[i]);
+        i -= 1;
+    }
+    return result;
+}
+
+fun zip_sum(a: Int[], b: Int[]) -> Int[] {
+    mut result: Int[] = [];
+    mut i = 0;
+    let len = array_len(a);
+    while (i < len) {
+        array_push(result, a[i] + b[i]);
+        i += 1;
+    }
+    return result;
+}
+
+fun min_max(arr: Int[]) -> (Int, Int) {
+    mut lo = arr[0];
+    mut hi = arr[0];
+    for (let n in arr) {
+        if (n < lo) { lo = n; }
+        if (n > hi) { hi = n; }
+    }
+    return (lo, hi);
+}
+
+fun main() {
+    // --- array literal and T[] type ---
+    let nums: Int[] = [5, 3, 8, 1, 9, 2];
+    println(int_to_string(array_len(nums)));   // 6
+    println(int_to_string(nums[0]));           // 5
+    println(int_to_string(nums[4]));           // 9
+
+    // --- Array<T> syntax is equivalent ---
+    let words: Array<String> = ["alpha", "beta", "gamma"];
+    println(words[1]);                         // beta
+    println(int_to_string(array_len(words)));  // 3
+
+    // --- array_push ---
+    mut growing: Int[] = [];
+    array_push(growing, 10);
+    array_push(growing, 20);
+    array_push(growing, 30);
+    println(int_to_string(array_len(growing)));  // 3
+    println(int_to_string(sum(growing)));         // 60
+
+    // --- sum and reverse ---
+    println(int_to_string(sum(nums)));          // 28
+
+    let rev = reverse([1, 2, 3, 4, 5]);
+    for (let n in rev) {
+        print(int_to_string(n) + " ");          // 5 4 3 2 1
+    }
+    println("");
+
+    // --- zip_sum ---
+    let a: Int[] = [1, 2, 3];
+    let b: Int[] = [4, 5, 6];
+    let zipped = zip_sum(a, b);
+    for (let n in zipped) {
+        print(int_to_string(n) + " ");          // 5 7 9
+    }
+    println("");
+
+    // --- tuples ---
+    let coord: (Int, Int) = (10, 20);
+    println(int_to_string(coord.0));            // 10
+    println(int_to_string(coord.1));            // 20
+
+    let triple: (String, Int, Bool) = ("yes", 42, true);
+    println(triple.0);                          // yes
+    println(int_to_string(triple.1));           // 42
+    println(bool_to_string(triple.2));          // true
+
+    // --- tuple returned from function ---
+    let bounds = min_max([3, 1, 7, 2, 9, 0, 5]);
+    println(int_to_string(bounds.0));           // 0  (min)
+    println(int_to_string(bounds.1));           // 9  (max)
+
+    // --- tuple destructuring in match ---
+    let pair = (true, 99);
+    match pair {
+        (true, n)  => println("flag set, value=" + int_to_string(n)),  // flag set, value=99
+        (false, _) => println("flag not set"),
+    }
+}

@@ -1,0 +1,57 @@
+// 01 — Literals and variables
+// Covers: integer/float/string/bool/nope literals, let, mut, type inference,
+//         explicit annotations, shadowing, compound assignment, string ops.
+
+fun main() {
+    // --- integer literals ---
+    let a = 42;
+    let b = 1_000_000;
+    println(int_to_string(a));          // 42
+    println(int_to_string(b));          // 1000000
+
+    // --- float literals ---
+    let x: Float = 3.14;
+    let y = 2.0;
+    println(float_to_string(x));        // 3.14
+    println(float_to_string(y));        // 2.0
+
+    // --- bool literals ---
+    let flag = true;
+    println(bool_to_string(flag));      // true
+    println(bool_to_string(false));     // false
+
+    // --- string literals with escapes ---
+    let greeting = "hello\tworld";
+    println(greeting);                  // hello	world
+    let quoted = "she said \"hi\"";
+    println(quoted);                    // she said "hi"
+
+    // --- nope literal ---
+    let maybe: Perhaps<Int> = nope;
+    match maybe {
+        Perhaps::Some { value } => println(int_to_string(value)),
+        Perhaps::Nope => println("nope"),   // nope
+    }
+
+    // --- mutable bindings ---
+    mut counter = 0;
+    counter = counter + 1;
+    counter += 10;
+    counter -= 3;
+    counter *= 2;
+    println(int_to_string(counter));    // 16  ( (0+1+10-3)*2 )
+
+    // --- type inference vs explicit annotation ---
+    let inferred = "Vlad";
+    let explicit: String = "Vlad";
+    println(bool_to_string(inferred == explicit));  // true
+
+    // --- shadowing ---
+    let shadow = 1;
+    let shadow = "now I am a string";
+    println(shadow);                    // now I am a string
+
+    // --- string concatenation with + ---
+    let full = "hello" + ", " + "world";
+    println(full);                      // hello, world
+}
