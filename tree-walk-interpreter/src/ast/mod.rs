@@ -96,7 +96,7 @@ pub struct Param {
 #[derive(Debug, Clone)]
 pub struct FieldDef {
     pub name: String,
-    pub type_ann: TypeExpr,
+    pub type_ann: Option<TypeExpr>,
     pub span: Span,
 }
 

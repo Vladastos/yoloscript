@@ -65,13 +65,14 @@ stmt = {
   | for_stmt
   | for_in_stmt
   | loop_stmt
+  | match_stmt
   | return_stmt
   | break_stmt
   | continue_stmt
   | expr_stmt
 }
 
-block      = { "{" ~ decl* ~ "}" }
+block      = { "{" ~ decl* ~ expr? ~ "}" }  // optional trailing expression (no semicolon) for expression-position blocks
 expr_stmt  = { expr ~ ";" }
 
 if_stmt    = { "if" ~ "(" ~ expr ~ ")" ~ block ~ ("else" ~ (if_stmt | block))? }
@@ -82,6 +83,7 @@ for_init   = { mut_decl | expr_stmt | ";" }
 
 for_in_stmt  = { "for" ~ "(" ~ "let" ~ ident ~ "in" ~ expr ~ ")" ~ block }
 loop_stmt    = { "loop" ~ block }
+match_stmt   = { "match" ~ expr ~ "{" ~ match_arm ~ ("," ~ match_arm)* ~ ","? ~ "}" }
 
 return_stmt   = { "return" ~ expr? ~ ";" }
 break_stmt    = { "break" ~ expr? ~ ";" }
@@ -92,7 +94,7 @@ continue_stmt = { "continue" ~ ";" }
 expr             = { assign_expr }
 
 assign_expr      = { postfix_expr ~ assign_op ~ assign_expr | or_expr }
-assign_op        = { "+=" | "-=" | "*=" | "/=" | "%=" | "=" }
+assign_op        = { "+=" | "-=" | "*=" | "/=" | "%=" | ("=" ~ !"=") }
 
 or_expr          = { and_expr ~ ("||" ~ and_expr)* }
 and_expr         = { cmp_expr ~ ("&&" ~ cmp_expr)* }
@@ -119,7 +121,7 @@ postfix          = {
 arg_list = { expr ~ ("," ~ expr)* }
 
 primary_expr = {
-    float_lit
+    float_lit     // must come before int_lit — "3.14" would match int "3" first otherwise
   | int_lit
   | string_lit
   | bool_lit
@@ -155,18 +157,18 @@ type_path = { ident ~ ("::" ~ ident)* }
 // ── Patterns ──────────────────────────────────────────────────────────────────
 
 pattern = {
-    "_"
-  | "nope"
+    ("_" ~ !(ASCII_ALPHANUMERIC | "_"))   // wildcard — must not match _foo
+  | nope_lit                              // nope literal (with word-boundary guard)
   | tuple_pattern
   | enum_pattern
   | literal_pattern
   | bind_pattern
 }
 
-tuple_pattern = { "(" ~ pattern ~ ("," ~ pattern)* ~ ")" }
-enum_pattern  = { ident ~ "::" ~ ident ~ ("{" ~ ident ~ ("," ~ ident)* ~ "}")? }
+tuple_pattern   = { "(" ~ pattern ~ ("," ~ pattern)* ~ ")" }
+enum_pattern    = { ident ~ "::" ~ ident ~ ("{" ~ ident ~ ("," ~ ident)* ~ "}")? }
 literal_pattern = { float_lit | int_lit | string_lit | bool_lit }
-bind_pattern  = { ident }
+bind_pattern    = { ident }
 
 // ── Type expressions ──────────────────────────────────────────────────────────
 
@@ -196,8 +198,8 @@ string_lit  = @{ "\"" ~ string_char* ~ "\"" }
 string_char = _{ "\\" ~ escape_seq | (!("\"" | "\\") ~ ANY) }
 escape_seq  = _{ "n" | "t" | "r" | "\\" | "\"" }
 
-bool_lit  = @{ "true" | "false" }
-nope_lit  = @{ "nope" }
+bool_lit  = @{ ("true" | "false") ~ !(ASCII_ALPHANUMERIC | "_") }
+nope_lit  = @{ "nope" ~ !(ASCII_ALPHANUMERIC | "_") }
 unit_lit  = @{ "()" }
 
 ident = @{

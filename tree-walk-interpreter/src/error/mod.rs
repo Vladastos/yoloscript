@@ -18,7 +18,12 @@ impl Span {
 #[derive(Debug, Error)]
 pub enum YolangError {
     #[error("Parse error in {filename} at {start}..{end}: {message}")]
-    ParseError { message: String, start: usize, end: usize, filename: String },
+    ParseError { message: String, start: usize, end: usize,  filename: String },
+
+    #[error("Parse error in {filename} at {start}..{end}, line {line}: {message}")]
+    ParseErrorWithLine { message: String, start: usize, end: usize, line: String, filename: String },
+
+
 
     #[error("Type error in {filename} at {start}..{end}: {message}")]
     TypeError { message: String, start: usize, end: usize, filename: String },
