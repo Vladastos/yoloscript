@@ -1,26 +1,29 @@
 # Yolang Design Decisions
 
-This directory tracks the design decisions made during the development of the Yolang language specification and implementation.
+Decision records capture the *reasoning* behind non-obvious design choices — context, alternatives considered, and why we chose what we chose. They are written once and not modified. Superseded decisions get a new record that references the old one.
 
-## Format
+See `PROCESS.md` for when to write a decision record and when not to.
 
-Each decision is a separate Markdown file named with a zero-padded number and a short slug:
+**What belongs here:** why a choice was made, what alternatives were rejected and why.
+**What does not belong here:** what a feature does (that is in `Language Spec.md`), what is still open (that is in `Backlog.md`).
 
-```
-0001-type-system.md
-0002-memory-model.md
-0003-error-handling.md
-```
+## Statuses
 
-Numbers are assigned sequentially and never reused. A decision, once recorded, is not deleted — if a decision is reversed or superseded, a new entry is added that references the old one.
+- **Accepted** — in effect
+- **Superseded** — replaced by a later decision (link provided)
+- **Rejected** — considered but not adopted; kept for historical context
 
-## Decision statuses
+## Index
 
-- **Proposed** — Under consideration, not yet settled
-- **Accepted** — Agreed upon and reflected in the spec
-- **Rejected** — Considered but decided against; kept for historical context
-- **Superseded** — Replaced by a later decision (link to the new one)
+| # | Title | Status |
+|---|-------|--------|
+| [0001](./0001-v0.1-feature-set.md) | v0.1 Feature Set Scope | Accepted |
+| [0002](./0002-interpreter-architecture.md) | Interpreter Architecture | Accepted |
+
+## File naming
+
+`NNNN-short-slug.md` — zero-padded number, then a kebab-case slug. Numbers are assigned sequentially and never reused.
 
 ## Template
 
-See [`0000-template.md`](./0000-template.md) for the file template to copy when recording a new decision.
+See [`0000-template.md`](./0000-template.md).

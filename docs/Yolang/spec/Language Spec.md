@@ -1,6 +1,10 @@
 # Yolang Language Specification
 
-> **Status:** Design phase. This document describes the intended language. Nothing here is fully implemented yet.
+> **Status:** Active. This document is the single source of truth for the Yolang language.
+> Features not described here are not part of the language.
+> Open design questions and deferred features are tracked in `Backlog.md`.
+
+Source files use the `.yolo` extension.
 
 ---
 
@@ -9,13 +13,11 @@
 Yolang is a strongly typed, compiled language with a Rust-inspired type system. Its core design principles are:
 
 - **Strong static typing** with local type inference
-- **No classes** — data and behavior are defined separately via structs, enums, and traits
+- **No classes** — data and behaviour are defined separately via structs, enums, and traits
 - **Algebraic data types** — enums with data-carrying variants and exhaustive pattern matching
-- **Explicit nullability** — absence of a value is represented by `Perhaps<T>` / `Nope`, never by null
+- **Explicit nullability** — absence of a value is represented by `Perhaps<T>` / `nope`, never by null
 - **Explicit error handling** — errors are values, represented as `Result<T, E>`
 - **Memory managed by the runtime** — reference counting, no ownership semantics in the language
-
-Source files use the `.yolo` extension.
 
 ---
 
@@ -47,21 +49,21 @@ By convention:
 ### 2.3 Keywords
 
 ```
-and       as        else      enum      false     for
-fun       if        impl      let       match     mut
-nope      or        return    struct    trait     true
-use       while     where
+and       as        break     continue  else      enum      false
+for       fun       if        impl      let       loop      match
+mut       nope      or        return    struct    trait     true
+use       where     while
 ```
 
 ### 2.4 Literals
 
-**Numbers — integers**
+**Integers** — decimal, with optional `_` separators:
 ```yolo
 42
 1_000_000
 ```
 
-**Numbers — floats**
+**Floats:**
 ```yolo
 3.14
 2.0
@@ -69,68 +71,56 @@ use       while     where
 
 Integer and float are distinct types and do not implicitly coerce.
 
-**Strings** — double-quoted UTF-8, with escape sequences:
+**Strings** — double-quoted UTF-8:
 
-| Sequence | Meaning        |
-|----------|----------------|
-| `\n`     | Newline        |
-| `\t`     | Tab            |
-| `\\`     | Backslash      |
-| `\"`     | Double quote   |
-| `\r`     | Carriage return|
+| Sequence | Meaning         |
+|----------|-----------------|
+| `\n`     | Newline         |
+| `\t`     | Tab             |
+| `\\`     | Backslash       |
+| `\"`     | Double quote    |
+| `\r`     | Carriage return |
 
-```yolo
-"hello\nworld"
-```
+**Booleans:** `true`, `false`
 
-**Booleans**
-```yolo
-true
-false
-```
-
-**Nope** — the absence-of-value literal (equivalent to Rust's `None`)
-```yolo
-nope
-```
+**Absence literal:** `nope`
 
 ### 2.5 Operators
 
-| Category       | Operators                                    |
-|----------------|----------------------------------------------|
-| Arithmetic     | `+`  `-`  `*`  `/`  `%`                      |
-| Comparison     | `==`  `!=`  `<`  `<=`  `>`  `>=`            |
-| Logical        | `&&` (`and`)  `\|\|` (`or`)  `!`             |
-| Assignment     | `=`                                          |
-| Range          | `..`  `..=`                                  |
-| Type cast      | `as`                                         |
-| Error propagation | `?`                                       |
-| Type ascription | `:`                                         |
-| Return type    | `->`                                         |
-| Path           | `::`                                         |
+| Category        | Operators                                     |
+|-----------------|-----------------------------------------------|
+| Arithmetic      | `+`  `-`  `*`  `/`  `%`                       |
+| Compound assign | `+=`  `-=`  `*=`  `/=`  `%=`                  |
+| Comparison      | `==`  `!=`  `<`  `<=`  `>`  `>=`              |
+| Logical         | `&&`  `\|\|`  `!`  (`and` / `or` as aliases)  |
+| Assignment      | `=`                                           |
+| Error prop      | `?`                                           |
+| Type cast       | `as`                                          |
+| Path            | `::`                                          |
+| Range           | `..`  `..=`  (for use in `for-in` only)       |
 
 ---
 
 ## 3. Type System
 
-Yolang is **statically and strongly typed**. Types are checked at compile time. There are no implicit conversions between types.
+Yolang is statically and strongly typed. Types are checked at compile time. There are no implicit conversions.
 
-### 3.1 Primitive Types
+### 3.1 Primitive types
 
-| Type      | Description                         | Example         |
-|-----------|-------------------------------------|-----------------|
-| `Int`     | 64-bit signed integer               | `42`            |
-| `Float`   | 64-bit floating point               | `3.14`          |
-| `Bool`    | Boolean                             | `true`          |
-| `String`  | UTF-8 string                        | `"hello"`       |
-| `()`      | Unit type — represents no value     | `()`            |
+| Type     | Description               | Example   |
+|----------|---------------------------|-----------|
+| `Int`    | 64-bit signed integer     | `42`      |
+| `Float`  | 64-bit floating point     | `3.14`    |
+| `Bool`   | Boolean                   | `true`    |
+| `String` | UTF-8 string              | `"hello"` |
+| `()`     | Unit — represents no value | `()`     |
 
-The unit type `()` is only used explicitly when needed as a type parameter (e.g. `Result<(), Error>`). Functions that return nothing omit the `->` return type annotation entirely.
+The unit type `()` is only written explicitly when needed as a type parameter (e.g. `Result<(), Error>`). Functions that return nothing omit the `->` annotation entirely.
 
-### 3.2 Type Inference
+### 3.2 Type inference
 
 Types are inferred for local variable bindings. Type annotations are required at:
-- Function parameter and return types
+- Function parameters and return types
 - Struct and enum field types
 - Trait method signatures
 
@@ -140,16 +130,42 @@ let name = "Vlad";    // inferred: String
 let y: Float = 3.14;  // explicit annotation
 ```
 
-### 3.3 Array type
+### 3.3 Tuples
 
-`Array<T>` is the built-in ordered sequence type. It can also be written using the shorthand `T[]`.
+Tuples are lightweight anonymous product types.
+
+```yolo
+let coord: (Int, Int) = (10, 20);
+let triple: (String, Int, Bool) = ("yes", 42, true);
+```
+
+Positional field access uses `.0`, `.1`, etc.:
+
+```yolo
+let x = coord.0;   // 10
+let y = coord.1;   // 20
+```
+
+`()` is the zero-element tuple (unit type).
+
+Tuples can be destructured in `match`:
+
+```yolo
+match coord {
+    (0, y) => println("on y-axis"),
+    (x, 0) => println("on x-axis"),
+    (x, y) => println("elsewhere"),
+}
+```
+
+### 3.4 Arrays
+
+`Array<T>` is the built-in ordered sequence type. The shorthand `T[]` is preferred.
 
 ```yolo
 let nums: Int[] = [1, 2, 3];
 let names: Array<String> = ["alice", "bob"];
 ```
-
-Both forms are equivalent. `T[]` is the preferred shorthand in practice.
 
 Index access uses `[]` with an `Int` index. Out-of-bounds access causes a panic.
 
@@ -157,57 +173,42 @@ Index access uses `[]` with an `Int` index. Out-of-bounds access causes a panic.
 let first = nums[0];
 ```
 
-Arrays are usable in `for-in` loops:
+Arrays are usable in `for-in` loops. `List<T>` is not available in v0.1; `T[]` is the only sequence type.
 
-```yolo
-for (let n in nums) {
-    println(int_to_string(n));
-}
-```
+### 3.5 Type casting (`as`)
 
-`List<T>` is a higher-level resizable collection type provided by the standard library, built on top of `Array<T>`. It is pre-imported in v0.1 and available without a `use` declaration.
-
-### 3.4 Type casting (`as`)
-
-The `as` operator casts between numeric primitive types. It desugars to a call to the `From` trait, making it infallible — the result is the target type directly, with no wrapping in `Result`.
+The `as` operator casts between numeric primitive types. It desugars to a call to the `From` trait and is infallible — the result is the target type directly.
 
 ```yolo
 let x: Int = 42;
 let f: Float = x as Float;
 
 let f2: Float = 3.99;
-let i: Int = f2 as Int;  // truncates toward zero
+let i: Int = f2 as Int;   // truncates toward zero
 ```
 
-Allowed primitive casts in v0.1: `Int` ↔ `Float`.
+Allowed primitive casts: `Int` ↔ `Float`.
 
-Because `as` desugars to `From`, user-defined types can also become castable by implementing `From<SourceType>` for the target type.
+Because `as` desugars to `From`, user-defined types become castable by implementing `From<SourceType>` for the target type.
 
-### 3.5 Generics
+### 3.6 Generics
 
-Types and functions can be parameterized with generic type parameters using `<T>` syntax.
+Types and functions can be parameterized with `<T>` syntax.
 
 ```yolo
 struct Stack<T> {
     items: T[],
 }
 
-fun first<T>(arr: T[]) -> Perhaps<T> {
-    // ...
-}
+fun first<T>(arr: T[]) -> Perhaps<T> { ... }
 ```
 
-Generic constraints are expressed with `where` clauses or inline trait bounds:
+Constraints are expressed with `where` clauses or inline bounds:
 
 ```yolo
-fun largest<T>(a: T, b: T) -> T where T: Comparable {
-    // ...
-}
+fun largest<T>(a: T, b: T) -> T where T: Comparable { ... }
 
-// inline form
-fun largest<T: Comparable>(a: T, b: T) -> T {
-    // ...
-}
+fun largest<T: Comparable>(a: T, b: T) -> T { ... }  // inline form
 ```
 
 ---
@@ -221,18 +222,19 @@ let x = 42;
 let name: String = "Vlad";
 ```
 
-`let` bindings cannot be reassigned after initialization. They must always be initialized.
+`let` bindings cannot be reassigned and must always be initialized.
 
 ### 4.2 Mutable bindings (`mut`)
 
 ```yolo
 mut counter = 0;
 counter = counter + 1;
+counter += 1;   // compound assignment
 ```
 
-`mut` bindings can be reassigned. They must also be initialized at declaration.
+`mut` bindings can be reassigned and also must be initialized at declaration. Compound assignment operators `+=`, `-=`, `*=`, `/=`, `%=` are supported.
 
-### 4.3 Scoping
+### 4.3 Scoping and shadowing
 
 Variables are lexically scoped. Each block `{ }` introduces a new scope. Inner scopes can shadow outer variables.
 
@@ -246,25 +248,36 @@ fun add(a: Int, b: Int) -> Int {
 }
 ```
 
-- Parameters always require type annotations.
-- The return type follows `->`. If omitted, the function returns nothing (unit).
-- Functions are first-class values and can be assigned, passed, and returned.
+Parameters always require type annotations. The return type follows `->`. If omitted, the function returns `()`. `return expr;` and bare `return;` are both valid.
 
-### 5.1 No return type (unit)
+### 5.1 Associated functions
+
+`impl` blocks may contain functions with no `self` parameter. These are called on the type via `::` syntax and serve as the canonical constructor pattern:
 
 ```yolo
-fun log(msg: String) {
-    // returns nothing
+impl Point {
+    fun new(x: Float, y: Float) -> Point {
+        return Point { x: x, y: y };
+    }
+}
+
+let p = Point::new(1.0, 2.0);
+```
+
+### 5.2 First-class functions
+
+Functions are first-class values and can be assigned, passed, and returned:
+
+```yolo
+let f = add;
+f(1, 2);   // 3
+
+fun apply(f: fun(Int) -> Int, x: Int) -> Int {
+    return f(x);
 }
 ```
 
-### 5.2 Generic functions
-
-```yolo
-fun identity<T>(value: T) -> T {
-    return value;
-}
-```
+The type of a function or closure is written as `fun(ParamTypes) -> ReturnType`.
 
 ### 5.3 Closures
 
@@ -272,30 +285,35 @@ Anonymous functions are written with `fun` in expression position:
 
 ```yolo
 let double = fun(x: Int) -> Int { return x * 2; };
-double(5); // 10
+double(5);   // 10
 ```
 
-Closures capture variables from their enclosing scope by reference. Captured `mut` variables are shared — mutations are visible in the outer scope.
+Closures capture variables from their enclosing scope. Captured `mut` variables are shared — mutations are visible in the outer scope:
+
+```yolo
+mut count = 0;
+let inc = fun() { count += 1; };
+inc();
+inc();
+// count == 2
+```
 
 ### 5.4 The `?` operator
 
-Inside a function that returns `Result<T, E>`, the `?` operator propagates errors:
+Inside a function returning `Result<T, E>`, `?` propagates errors early:
 
 ```yolo
-fun read_and_parse(path: String) -> Result<Int, Error> {
-    let content = read_file(path)?;
-    let number = parse_int(content)?;
-    return number;
+fun parse_and_double(s: String) -> Result<Int, String> {
+    let n = parse_int(s)?;   // returns Err early if parse_int fails
+    return Result::Ok { value: n * 2 };
 }
 ```
 
-If the expression evaluates to an error variant, `?` returns early from the function with that error. Otherwise it unwraps the success value.
+`?` desugars to: if the expression is `Err(e)`, return `Err(e)` immediately; otherwise unwrap to the `Ok` value. Error types must match exactly — no implicit coercion.
 
 ---
 
 ## 6. Structs
-
-Structs define named data types.
 
 ```yolo
 struct Point {
@@ -304,36 +322,39 @@ struct Point {
 }
 ```
 
-### 6.1 Instantiation
+### 6.1 Instantiation and field access
 
 ```yolo
 let p = Point { x: 1.0, y: 2.0 };
-```
-
-### 6.2 Field access
-
-```yolo
 let x = p.x;
 ```
 
-### 6.3 Methods (`impl`)
-
-Behavior is added to structs via `impl` blocks, separate from the struct definition.
+### 6.2 Methods (`impl`)
 
 ```yolo
 impl Point {
     fun distance(self, other: Point) -> Float {
         let dx = self.x - other.x;
         let dy = self.y - other.y;
-        return sqrt(dx * dx + dy * dy);
+        return dx * dx + dy * dy;   // squared distance
     }
 }
+
+let d = p.distance(q);
 ```
 
-`self` refers to the receiver instance. Methods are called with dot syntax:
+`self` refers to the receiver. Methods are called with dot syntax.
+
+### 6.3 Mutable receiver (`mut self`)
+
+Methods that mutate the receiver declare `mut self`. Mutation happens in place:
 
 ```yolo
-let d = p.distance(q);
+impl Counter {
+    fun increment(mut self) {
+        self.value += 1;
+    }
+}
 ```
 
 ### 6.4 Generic structs
@@ -349,22 +370,16 @@ struct Pair<A, B> {
 
 ## 7. Enums
 
-Enums define types with a fixed set of variants. Variants may carry data.
-
 ```yolo
-enum Direction {
-    North,
-    South,
-    East,
-    West,
-}
+enum Direction { North, South, East, West }
 
 enum Shape {
     Circle { radius: Float },
     Rectangle { width: Float, height: Float },
-    Triangle { base: Float, height: Float },
 }
 ```
+
+Variants may be unit (no data) or struct-like (named fields).
 
 ### 7.1 Instantiation
 
@@ -375,13 +390,14 @@ let s = Shape::Circle { radius: 5.0 };
 
 ### 7.2 Methods on enums
 
+`impl` blocks on enums follow the same syntax as structs:
+
 ```yolo
 impl Shape {
     fun area(self) -> Float {
         match self {
             Shape::Circle { radius } => 3.14159 * radius * radius,
             Shape::Rectangle { width, height } => width * height,
-            Shape::Triangle { base, height } => 0.5 * base * height,
         }
     }
 }
@@ -389,61 +405,35 @@ impl Shape {
 
 ---
 
-## 8. Perhaps\<T\> and Nope
+## 8. `Perhaps<T>` and `nope`
 
-`Perhaps<T>` is the built-in optional type. It represents a value that may or may not be present. There is no null in Yolang — all absence must be expressed through `Perhaps<T>`.
-
-```yolo
-fun find_user(id: Int) -> Perhaps<User> {
-    // ...
-}
-```
-
-`Nope` is the literal for the absent case (equivalent to `None` in Rust).
+`Perhaps<T>` is the built-in optional type. There is no null — all absence is expressed via `Perhaps<T>`.
 
 ```yolo
 let result: Perhaps<Int> = nope;
 let value: Perhaps<Int> = 42;
 ```
 
-`Perhaps<T>` is a standard enum defined conceptually as:
-
-```yolo
-enum Perhaps<T> {
-    Nope,
-    Some(T),   // or: Perhaps { value: T }
-}
-```
-
-Use `match` to safely unwrap:
+Use `match` to unwrap safely:
 
 ```yolo
 match find_user(1) {
-    Perhaps::Some { value } => print(value.name),
-    Perhaps::Nope => print("not found"),
+    Perhaps::Some { value } => println(value.name),
+    Perhaps::Nope => println("not found"),
 }
 ```
 
-The `.yolo()` method performs an unwrap, panicking if the value is `Nope`:
+`.yolo()` unwraps, panicking if the value is `nope`:
 
 ```yolo
-let user = find_user(1).yolo(); // panics if not found
+let user = find_user(1).yolo();
 ```
 
 ---
 
-## 9. Result\<T, E\>
+## 9. `Result<T, E>`
 
-`Result<T, E>` represents the outcome of a fallible operation. It is a standard enum:
-
-```yolo
-enum Result<T, E> {
-    Ok { value: T },
-    Err { error: E },
-}
-```
-
-Functions that can fail return `Result<T, E>`:
+`Result<T, E>` represents the outcome of a fallible operation:
 
 ```yolo
 fun divide(a: Float, b: Float) -> Result<Float, String> {
@@ -454,13 +444,13 @@ fun divide(a: Float, b: Float) -> Result<Float, String> {
 }
 ```
 
-Use `match` to handle both cases, or `?` to propagate errors up the call stack.
+Use `match` to handle both cases, or `?` to propagate errors.
+
+`.yolo()` also works on `Result<T, E>`, panicking on `Err`.
 
 ---
 
 ## 10. Traits
-
-Traits define shared behavior across types.
 
 ```yolo
 trait Printable {
@@ -477,7 +467,7 @@ trait Comparable {
 ```yolo
 impl Printable for Point {
     fun print(self) {
-        print("(" + self.x + ", " + self.y + ")");
+        println("(" + float_to_string(self.x) + ", " + float_to_string(self.y) + ")");
     }
 }
 ```
@@ -485,7 +475,7 @@ impl Printable for Point {
 ### 10.2 Trait bounds in generics
 
 ```yolo
-fun print_all<T: Printable>(items: List<T>) {
+fun print_all<T: Printable>(items: T[]) {
     for (let item in items) {
         item.print();
     }
@@ -494,64 +484,44 @@ fun print_all<T: Printable>(items: List<T>) {
 
 ### 10.3 Default method implementations
 
-Traits may provide default implementations that types can override:
-
 ```yolo
 trait Greet {
     fun name(self) -> String;
 
-    fun greet(self) {
-        print("Hello, " + self.name() + "!");
+    fun greet(self) {                          // default implementation
+        println("Hello, " + self.name() + "!");
     }
 }
 ```
+
+### 10.4 The `Self` type
+
+`Self` inside a trait definition refers to the concrete implementing type:
+
+```yolo
+trait Comparable {
+    fun compare(self, other: Self) -> Int;
+}
+```
+
+### 10.5 Static dispatch only
+
+Trait objects (`dyn Trait`) are not available in v0.1. All polymorphism is via generics (static dispatch).
 
 ---
 
 ## 11. Pattern Matching
 
-`match` expressions perform exhaustive pattern matching. The compiler enforces that all cases are covered.
+`match` performs exhaustive pattern matching. All cases must be covered.
 
 ```yolo
 match value {
     pattern => expression,
-    pattern => expression,
-    _ => expression,   // catch-all
+    _       => expression,   // catch-all
 }
 ```
 
-### 11.1 Matching on enums
-
-```yolo
-match direction {
-    Direction::North => print("going north"),
-    Direction::South => print("going south"),
-    Direction::East  => print("going east"),
-    Direction::West  => print("going west"),
-}
-```
-
-### 11.2 Matching with destructuring
-
-```yolo
-match shape {
-    Shape::Circle { radius } => print("circle, r=" + radius),
-    Shape::Rectangle { width, height } => print("rect " + width + "x" + height),
-    Shape::Triangle { base, height } => print("triangle"),
-}
-```
-
-### 11.3 Matching literals and guards
-
-```yolo
-match x {
-    0 => print("zero"),
-    n if n < 0 => print("negative"),
-    _ => print("positive"),
-}
-```
-
-### 11.4 `match` is an expression
+`match` is an expression — all arms must produce the same type:
 
 ```yolo
 let label = match x {
@@ -559,6 +529,43 @@ let label = match x {
     1 => "one",
     _ => "other",
 };
+```
+
+### 11.1 Pattern kinds
+
+| Pattern | Example | Matches |
+|---------|---------|---------|
+| Wildcard | `_` | anything, binds nothing |
+| Binding | `n` | anything, binds to `n` |
+| Literal | `0`, `"hi"`, `true`, `nope` | exact value |
+| Enum variant | `Direction::North` | unit variant |
+| Enum with fields | `Shape::Circle { radius }` | variant, binds fields |
+| Tuple | `(a, b)` | tuple, binds elements |
+| Guard | `n if n < 0` | binding + boolean condition |
+
+### 11.2 Examples
+
+```yolo
+// enum destructuring
+match shape {
+    Shape::Circle { radius } => println(float_to_string(radius)),
+    Shape::Rectangle { width, height } => println(float_to_string(width)),
+}
+
+// literal and guard
+match x {
+    0           => println("zero"),
+    n if n < 0  => println("negative"),
+    _           => println("positive"),
+}
+
+// tuple destructuring
+match point {
+    (0, 0) => println("origin"),
+    (x, 0) => println("on x-axis"),
+    (0, y) => println("on y-axis"),
+    (x, y) => println("elsewhere"),
+}
 ```
 
 ---
@@ -577,13 +584,13 @@ if (condition) {
 }
 ```
 
-`if` is also an expression:
+`if` is also an expression (both branches must produce the same type):
 
 ```yolo
 let label = if (x > 0) { "positive" } else { "non-positive" };
 ```
 
-### 12.2 While loop
+### 12.2 While
 
 ```yolo
 while (condition) {
@@ -591,34 +598,65 @@ while (condition) {
 }
 ```
 
-### 12.3 For loop (C-style)
+### 12.3 C-style for
 
 ```yolo
-for (mut i = 0; i < 10; i = i + 1) {
+for (mut i = 0; i < 10; i += 1) {
     // ...
 }
 ```
 
-### 12.4 For-in loop (iterator)
+### 12.4 For-in
+
+Iterates over any array or range:
 
 ```yolo
-for (let item in collection) {
-    // ...
-}
+for (let item in collection) { ... }
+for (let i in 0..10) { ... }    // 0, 1, ..., 9
+for (let i in 0..=10) { ... }   // 0, 1, ..., 10
 ```
 
-### 12.5 Return
+### 12.5 Loop
+
+`loop` creates an infinite loop. It is the only loop form that can produce a value:
 
 ```yolo
-return;         // from a function with no return type
-return value;   // from a function with a return type
+loop {
+    // runs forever unless break is used
+}
+
+let result = loop {
+    if (condition) { break value; }
+};
+```
+
+### 12.6 Break and continue
+
+`break` exits the innermost loop. `break expr` exits a `loop` and produces `expr` as the loop's value.
+
+`continue` skips to the next iteration of the innermost loop.
+
+### 12.7 Return
+
+```yolo
+return;         // from a function returning ()
+return value;   // from a typed function
 ```
 
 ---
 
-## 13. Grammar
+## 13. Panics
 
-> This grammar will be refined as the implementation progresses.
+A panic is a hard, unrecoverable runtime error. It prints a message and exits the process with a non-zero status. Panics cannot be caught.
+
+Panics are triggered by:
+- `.yolo()` on `nope` or a `Result::Err`
+- Out-of-bounds array access
+- Integer division by zero
+
+---
+
+## 14. Grammar
 
 ```
 Program            → Declaration* EOF
@@ -637,126 +675,107 @@ MutDeclaration     → "mut" IDENTIFIER ( ":" Type )? "=" Expression ";"
 FunDeclaration     → "fun" IDENTIFIER GenericParams? "(" Params? ")" ( "->" Type )? Block
 StructDeclaration  → "struct" IDENTIFIER GenericParams? "{" StructFields "}"
 EnumDeclaration    → "enum" IDENTIFIER GenericParams? "{" EnumVariants "}"
-ImplBlock          → "impl" ( IDENTIFIER "for" )? Type "{" FunDeclaration* "}"
+ImplBlock          → "impl" ( Type "for" )? Type "{" FunDeclaration* "}"
 TraitDeclaration   → "trait" IDENTIFIER "{" TraitMethod* "}"
+TraitMethod        → "fun" IDENTIFIER "(" Params? ")" ( "->" Type )? ( Block | ";" )
 
 Params             → Param ( "," Param )*
-Param              → IDENTIFIER ":" Type
-StructFields       → StructField ( "," StructField )*
+Param              → ( "mut" )? "self" | IDENTIFIER ":" Type
+StructFields       → StructField ( "," StructField )* ","?
 StructField        → IDENTIFIER ":" Type
-EnumVariants       → EnumVariant ( "," EnumVariant )*
+EnumVariants       → EnumVariant ( "," EnumVariant )* ","?
 EnumVariant        → IDENTIFIER ( "{" StructFields "}" )?
-GenericParams      → "<" IDENTIFIER ( ":" Type )? ( "," IDENTIFIER ( ":" Type )? )* ">"
+GenericParams      → "<" GenericParam ( "," GenericParam )* ">"
+GenericParam       → IDENTIFIER ( ":" Type )?
 
 Statement          → ExpressionStatement
                    | Block
                    | IfStatement
                    | WhileStatement
                    | ForStatement
+                   | LoopStatement
                    | ReturnStatement
+                   | BreakStatement
+                   | ContinueStatement
 
 ExpressionStatement → Expression ";"
 Block               → "{" Declaration* "}"
 IfStatement         → "if" "(" Expression ")" Block ( "else" ( IfStatement | Block ) )?
 WhileStatement      → "while" "(" Expression ")" Block
-ForStatement        → "for" "(" ( MutDeclaration | ExpressionStatement | ";" )
-                                  Expression? ";"
-                                  Expression? ")" Block
+ForStatement        → "for" "(" ForInit Expression? ";" Expression? ")" Block
                     | "for" "(" "let" IDENTIFIER "in" Expression ")" Block
+ForInit             → MutDeclaration | ExpressionStatement | ";"
+LoopStatement       → "loop" Block
 ReturnStatement     → "return" Expression? ";"
+BreakStatement      → "break" Expression? ";"
+ContinueStatement   → "continue" ";"
 
-Expression         → AssignmentExpression
-AssignmentExpression → IDENTIFIER "=" AssignmentExpression | LogicalOrExpression
-LogicalOrExpression  → LogicalAndExpression ( "||" LogicalAndExpression )*
-LogicalAndExpression → ComparisonExpression ( "&&" ComparisonExpression )*
-ComparisonExpression → TermExpression ( ( ">" | ">=" | "<" | "<=" | "!=" | "==" ) TermExpression )?
-TermExpression       → FactorExpression ( ( "+" | "-" ) FactorExpression )*
-FactorExpression     → UnaryExpression ( ( "*" | "/" | "%" ) UnaryExpression )*
-UnaryExpression      → ( "!" | "-" ) UnaryExpression | CallExpression
-CallExpression       → PostfixExpression ( "(" Arguments? ")" | "." IDENTIFIER | "?" )*
-PostfixExpression    → PrimaryExpression
-Arguments            → Expression ( "," Expression )*
-PrimaryExpression    → INT | FLOAT | STRING | "true" | "false" | "nope" | "()"
-                     | "(" Expression ")"
-                     | IDENTIFIER ( "::" IDENTIFIER )*
-                     | StructLiteral
-                     | MatchExpression
-                     | IfExpression
-                     | ClosureExpression
+Expression              → AssignmentExpression
+AssignmentExpression    → LValue AssignOp AssignmentExpression | LogicalOrExpression
+LValue                  → IDENTIFIER | CallExpression "." IDENTIFIER | CallExpression "[" Expression "]"
+AssignOp                → "=" | "+=" | "-=" | "*=" | "/=" | "%="
+LogicalOrExpression     → LogicalAndExpression ( "||" LogicalAndExpression )*
+LogicalAndExpression    → ComparisonExpression ( "&&" ComparisonExpression )*
+ComparisonExpression    → TermExpression ( ( ">" | ">=" | "<" | "<=" | "!=" | "==" ) TermExpression )?
+TermExpression          → FactorExpression ( ( "+" | "-" ) FactorExpression )*
+FactorExpression        → CastExpression ( ( "*" | "/" | "%" ) CastExpression )*
+CastExpression          → UnaryExpression ( "as" Type )*
+UnaryExpression         → ( "!" | "-" ) UnaryExpression | PostfixExpression
+PostfixExpression       → PrimaryExpression ( "(" Arguments? ")" | "." IDENTIFIER | "[" Expression "]" | "?" )*
+Arguments               → Expression ( "," Expression )*
 
-MatchExpression      → "match" Expression "{" MatchArm ( "," MatchArm )* ","? "}"
-MatchArm             → Pattern ( "if" Expression )? "=>" Expression
-IfExpression         → "if" "(" Expression ")" Block "else" Block
+PrimaryExpression  → INT | FLOAT | STRING | "true" | "false" | "nope" | "()"
+                   | "(" Expression ( "," Expression )+ ")"   // tuple
+                   | "(" Expression ")"
+                   | "[" ( Expression ( "," Expression )* ","? )? "]"  // array literal
+                   | IDENTIFIER ( "::" IDENTIFIER )*
+                   | StructLiteral
+                   | MatchExpression
+                   | IfExpression
+                   | LoopExpression
+                   | ClosureExpression
 
-StructLiteral        → IDENTIFIER ( "::" IDENTIFIER )* "{" FieldInit ( "," FieldInit )* ","? "}"
-FieldInit            → IDENTIFIER ":" Expression
+StructLiteral      → IDENTIFIER ( "::" IDENTIFIER )* "{" FieldInit ( "," FieldInit )* ","? "}"
+FieldInit          → IDENTIFIER ":" Expression
 
-ClosureExpression    → "fun" "(" Params? ")" ( "->" Type )? Block
+MatchExpression    → "match" Expression "{" MatchArm ( "," MatchArm )* ","? "}"
+MatchArm           → Pattern ( "if" Expression )? "=>" Expression
+IfExpression       → "if" "(" Expression ")" Block "else" Block
+LoopExpression     → "loop" Block
+ClosureExpression  → "fun" "(" Params? ")" ( "->" Type )? Block
 
-Pattern              → "_"
-                     | "nope"
-                     | IDENTIFIER
-                     | IDENTIFIER "::" IDENTIFIER ( "{" PatternFields "}" )?
-                     | INT | FLOAT | STRING | "true" | "false"
-PatternFields        → IDENTIFIER ( "," IDENTIFIER )*
+Pattern            → "_"
+                   | "nope"
+                   | IDENTIFIER
+                   | "(" Pattern ( "," Pattern )* ")"          // tuple pattern
+                   | IDENTIFIER "::" IDENTIFIER ( "{" PatternFields "}" )?
+                   | INT | FLOAT | STRING | "true" | "false"
+PatternFields      → IDENTIFIER ( "," IDENTIFIER )*
 
 Type               → IDENTIFIER ( "<" TypeArgs ">" )?
                    | "()"
+                   | "(" Type ( "," Type )+ ")"                // tuple type
+                   | Type "[]"                                  // array shorthand
+                   | "fun" "(" TypeList? ")" ( "->" Type )?    // function type
 TypeArgs           → Type ( "," Type )*
+TypeList           → Type ( "," Type )*
 ```
 
 ---
 
-## 14. Standard Library (Planned)
+## 15. Built-in functions
 
-The following builtins and stdlib modules are planned. None are final.
+These are available globally without any `use` declaration:
 
-### Built-in functions
-
-| Name       | Signature                     | Description                            |
-|------------|-------------------------------|----------------------------------------|
-| `print`    | `(value: T)`                  | Print any printable value to stdout    |
-| `clock`    | `() -> Int`                   | Unix timestamp in milliseconds         |
-
-### Planned modules
-
-- **`math`** — `floor`, `ceil`, `abs`, `sqrt`, `pow`, `min`, `max`
-- **`string`** — `len`, `split`, `trim`, `contains`, `to_upper`, `to_lower`
-- **`array`** — built-in; `array_push`, `array_len` available globally (see §3.3)
-- **`list`** — stdlib `List<T>` built on `Array<T>`; `push`, `pop`, `len`, `map`, `filter`, `fold`
-- **`io`** — `read_line`, `read_file`, `write_file`
-
----
-
-## 15. Error Handling Summary
-
-| Situation                   | Mechanism                          |
-|-----------------------------|------------------------------------|
-| Value may be absent         | `Perhaps<T>` / `nope`              |
-| Operation may fail          | `Result<T, E>`                     |
-| Unwrap with panic on absent | `.yolo()` method                   |
-| Propagate error up          | `?` operator                       |
-| Handle all cases            | `match`                            |
-
----
-
-## 16. Design Decisions Log
-
-This section records key decisions and their rationale for future reference.
-
-| Decision         | Choice                                | Rationale                                                               |
-| ---------------- | ------------------------------------- | ----------------------------------------------------------------------- |
-| Null handling    | `Perhaps<T>` / `nope`                 | Forces explicit handling of absence at the type level                   |
-| Error handling   | `Result<T, E>`                        | Errors are values; no hidden control flow from exceptions               |
-| No classes       | Structs + traits                      | Cleaner separation of data and behavior; avoids inheritance complexity  |
-| Enums            | ADTs with data-carrying variants      | Enables `Perhaps`, `Result`, and expressive domain modeling             |
-| Type inference   | Local inference, annotated boundaries | Reduces noise without sacrificing clarity at API boundaries             |
-| Memory           | Reference counting (runtime)          | Simpler implementation; no ownership semantics exposed to the user      |
-| Void return      | Omit `->` annotation                  | Less noise; `()` only appears when explicitly needed as a type argument |
-| Generic syntax   | `<T>` (Rust-style)                    | Consistent with the overall Rust-inspired aesthetic                     |
-| Array type       | `Array<T>` / `T[]` (built-in)         | Consistent with mainstream language conventions; `List<T>` is stdlib    |
-| Type casting     | `as` desugars to `From`               | Infallible casts; user types become castable by implementing `From<T>`  |
-| Function keyword | `fun`                                 | Carried over from the original language                                 |
-| Mutability       | `let` / `mut`                         | Carried over; consistent with the immutability-by-default philosophy    |
-| For loops        | C-style + for-in                      | C-style carried over; for-in added for iterator ergonomics              |
-| Pattern matching | `match` (Rust-style)                  | Natural fit for ADTs and `Perhaps`/`Result` handling                    |
+| Name              | Signature                           | Description                              |
+|-------------------|-------------------------------------|------------------------------------------|
+| `print`           | `(s: String)`                       | Print to stdout, no newline              |
+| `println`         | `(s: String)`                       | Print to stdout with newline             |
+| `int_to_string`   | `(n: Int) -> String`                | Decimal string representation of an Int |
+| `float_to_string` | `(n: Float) -> String`              | String representation of a Float        |
+| `bool_to_string`  | `(b: Bool) -> String`               | `"true"` or `"false"`                   |
+| `string_len`      | `(s: String) -> Int`                | Number of characters in a string        |
+| `string_concat`   | `(a: String, b: String) -> String`  | Concatenate two strings (also via `+`)  |
+| `array_push`      | `(arr: T[], value: T)`              | Append a value (mutates the array)      |
+| `array_len`       | `(arr: T[]) -> Int`                 | Number of elements in an array          |
+| `clock`           | `() -> Int`                         | Unix timestamp in milliseconds          |

@@ -1,0 +1,17 @@
+[package]
+name = "yolang"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "yolang"
+path = "src/main.rs"
+
+[dependencies]
+# PEG parser generator — grammar lives in src/grammar.pest
+pest = "2"
+pest_derive = "2"
+
+# Nicer error reporting with source context
+miette = { version = "7", features = ["fancy"] }
+thiserror = "2"

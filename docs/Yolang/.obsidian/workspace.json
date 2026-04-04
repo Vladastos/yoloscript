@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Readme.md",
+                "file": "PROCESS.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Readme"
+              "title": "PROCESS"
             }
           }
         ]
@@ -94,7 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "Readme.md",
+                "file": "PROCESS.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -104,7 +104,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for Readme"
+              "title": "Backlinks for PROCESS"
             }
           },
           {
@@ -113,12 +113,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "Readme.md",
+                "file": "PROCESS.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Outgoing links from Readme"
+              "title": "Outgoing links from PROCESS"
             }
           },
           {
@@ -156,13 +156,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "Readme.md",
+                "file": "PROCESS.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of Readme"
+              "title": "Outline of PROCESS"
             }
           }
         ]
@@ -183,24 +183,29 @@
       "bases:Create new base": false
     }
   },
-  "active": "8bfd5d30c7d4cf35",
+  "active": "0e75aa3b1ffecbda",
   "lastOpenFiles": [
+    "decisions/README.md.tmp.5.1775313369961",
+    "interpreter/DESIGN.md",
+    "interpreter/DESIGN.md.tmp.5.1775313191125",
+    "interpreter",
+    "decisions/0002-interpreter-architecture.md",
+    "decisions/0002-interpreter-architecture.md.tmp.5.1775313136029",
     "decisions/0001-v0.1-feature-set.md",
-    "spec/Spec Roadmap.md",
-    "spec/Language Spec.md",
-    "spec/Spec Roadmap.md.tmp.5.1775310660875",
-    "spec/Spec Roadmap.md.tmp.5.1775310645442",
-    "spec/Spec Roadmap.md.tmp.5.1775310638881",
-    "spec/Spec Roadmap.md.tmp.5.1775310631834",
-    "spec/Spec Roadmap.md.tmp.5.1775310625957",
-    "spec/Spec Roadmap.md.tmp.5.1775310620423",
-    "spec/Spec Roadmap.md.tmp.5.1775310611469",
-    "spec/Spec Roadmap.md.tmp.5.1775310604306",
-    "spec/Spec Roadmap.md.tmp.5.1775310598023",
-    "spec/Spec Roadmap.md.tmp.5.1775310591603",
+    "PROCESS.md.tmp.5.1775312394377",
     "decisions/0000-template.md",
-    "Readme.md",
+    "spec/Language Spec.md",
+    "PROCESS.md",
+    "spec/Backlog.md",
     "decisions/README.md",
+    "decisions/0000-template.md.tmp.5.1775312033133",
+    "decisions/README.md.tmp.5.1775312023897",
+    "Readme.md",
+    "spec/Spec Roadmap.md",
+    "decisions/0001-v0.1-feature-set.md.tmp.5.1775311975622",
+    "spec/Backlog.md.tmp.5.1775311953126",
+    "spec/Language Spec.md.tmp.5.1775311923282",
+    "PROCESS.md.tmp.5.1775311819247",
     "Welcome.md",
     "tasks/Remove environment cloning on new scope.md",
     "tasks/Index.md",

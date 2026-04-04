@@ -1,7 +1,7 @@
 # NNNN — Title
 
 - **Date:** YYYY-MM-DD
-- **Status:** Proposed | Accepted | Rejected | Superseded by [NNNN](./NNNN-slug.md)
+- **Status:** Accepted | Rejected | Superseded by [NNNN](./NNNN-slug.md)
 
 ## Context
 
@@ -11,28 +11,20 @@ What problem or question prompted this decision? What constraints or goals are r
 
 ### Option A — Name
 
-Description of the option.
+Description of the option and why it was a serious candidate.
 
-**Pros:**
-- ...
-
-**Cons:**
-- ...
+**Pros:** ...
+**Cons:** ...
 
 ### Option B — Name
 
-Description of the option.
-
-**Pros:**
-- ...
-
-**Cons:**
-- ...
+**Pros:** ...
+**Cons:** ...
 
 ## Decision
 
-What was decided, and why. Reference the options above.
+What was decided and why. Reference the options above. Do not re-describe how the feature works — point to the relevant section of `Language Spec.md` instead.
 
 ## Consequences
 
-What does this decision affect? What becomes easier or harder as a result? Any follow-up decisions that will need to be made?
+What does this decision affect downstream? What follow-up decisions does it open or close?
