@@ -25,12 +25,12 @@ pub fn parse(source: &str, filename: &str) -> Result<Program, YolangError> {
         }
     })?;
 
-    parse_program(&mut pairs)
+    parse_program(&mut pairs, filename)
 }
 
 
 
-fn parse_program(pairs: &mut Pairs<Rule>) -> Result<Program, YolangError> {
+fn parse_program(pairs: &mut Pairs<Rule>, filename: &str) -> Result<Program, YolangError> {
     let program_pair = pairs.next().ok_or(YolangError::ParseError { message: "Expected program".into(), start: 0, end: 0, filename: "".into() })?;
     if program_pair.as_rule() != Rule::program {
         return Err(YolangError::ParseError { message: "Expected program".into(), start: 0, end: 0, filename: "".into() });
@@ -39,7 +39,7 @@ fn parse_program(pairs: &mut Pairs<Rule>) -> Result<Program, YolangError> {
     for pair in program_pair.into_inner() {
         match pair.as_rule() {
             Rule::decl => {
-                decls.push(parse_decl(pair)?);
+                decls.push(parse_decl(pair, filename)?);
             }
             Rule::EOI => {}
             _ => {}
@@ -48,57 +48,58 @@ fn parse_program(pairs: &mut Pairs<Rule>) -> Result<Program, YolangError> {
     Ok(Program { decls: decls })
 }
 
-fn parse_decl(pair: pest::iterators::Pair<Rule>) -> Result<Decl, YolangError> {
+fn parse_decl(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<Decl, YolangError> {
     // `decl` has exactly one child
     let inner = pair.into_inner().next().ok_or(YolangError::NoMatch)?;
     match inner.as_rule() {
-        Rule::let_decl    => Ok(Decl::Let(parse_let_decl(inner)?)),
-        Rule::mut_decl    => Ok(Decl::Mut(parse_mut_decl(inner)?)),
-        Rule::fun_decl    => Ok(Decl::Fun(parse_fun_decl(inner)?)),
-        Rule::struct_decl => Ok(Decl::Struct(parse_struct_decl(inner)?)),
-        Rule::enum_decl   => Ok(Decl::Enum(parse_enum_decl(inner)?)),
-        Rule::impl_block  => Ok(Decl::Impl(parse_impl_block(inner)?)),
-        Rule::trait_decl  => Ok(Decl::Trait(parse_trait_decl(inner)?)),
-        Rule::stmt        => Ok(Decl::Stmt(parse_stmt(inner)?)),
+        Rule::let_decl    => Ok(Decl::Let(parse_let_decl(inner, filename)?)),
+        Rule::mut_decl    => Ok(Decl::Mut(parse_mut_decl(inner, filename)?)),
+        Rule::fun_decl    => Ok(Decl::Fun(parse_fun_decl(inner, filename)?)),
+        Rule::struct_decl => Ok(Decl::Struct(parse_struct_decl(inner, filename)?)),
+        Rule::enum_decl   => Ok(Decl::Enum(parse_enum_decl(inner, filename)?)),
+        Rule::impl_block  => Ok(Decl::Impl(parse_impl_block(inner, filename)?)),
+        Rule::trait_decl  => Ok(Decl::Trait(parse_trait_decl(inner, filename)?)),
+        Rule::stmt        => Ok(Decl::Stmt(parse_stmt(inner, filename)?)),
         _ => Err(YolangError::NoMatch),
     }
 }
 
-fn parse_let_decl(pair: pest::iterators::Pair<Rule>) -> Result<LetDecl, YolangError> {
-    let span = Span::of(&pair);
+fn parse_let_decl(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<LetDecl, YolangError> {
+    let span = Span::of(&pair, filename);
     let mut inner = pair.into_inner();
     let name = inner.next().ok_or(YolangError::NoMatch)?.as_str().to_string();
-    let (type_ann, value) = parse_opt_type_then_expr(&mut inner)?;
+    let (type_ann, value) = parse_opt_type_then_expr(&mut inner, filename)?;
     Ok(LetDecl { name, type_ann, value, span })
 }
 
-fn parse_mut_decl(pair: pest::iterators::Pair<Rule>) -> Result<MutDecl, YolangError> {
-    let span = Span::of(&pair);
+fn parse_mut_decl(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<MutDecl, YolangError> {
+    let span = Span::of(&pair, filename);
     let mut inner = pair.into_inner();
     let name = inner.next().ok_or(YolangError::NoMatch)?.as_str().to_string();
-    let (type_ann, value) = parse_opt_type_then_expr(&mut inner)?;
+    let (type_ann, value) = parse_opt_type_then_expr(&mut inner, filename)?;
     Ok(MutDecl { name, type_ann, value, span })
 }
 
 /// Shared helper: parse `(":" type_expr)? expr` from a pair iterator.
 fn parse_opt_type_then_expr(
     inner: &mut pest::iterators::Pairs<Rule>,
+    filename: &str
 ) -> Result<(Option<TypeExpr>, Expr), YolangError> {
     let next = inner.next().ok_or(YolangError::NoMatch)?;
     match next.as_rule() {
         Rule::type_expr => {
-            let type_ann = Some(parse_type_expr(next)?);
+            let type_ann = Some(parse_type_expr(next, filename)?);
             let expr_pair = inner.next().ok_or(YolangError::NoMatch)?;
-            let value = parse_expr(expr_pair)?;
+            let value = parse_expr(expr_pair, filename)?;
             Ok((type_ann, value))
         }
-        Rule::expr => Ok((None, parse_expr(next)?)),
+        Rule::expr => Ok((None, parse_expr(next, filename)?)),
         _ => Err(YolangError::NoMatch),
     }
 }
 
-fn parse_fun_decl(pair: pest::iterators::Pair<Rule>) -> Result<FunDecl, YolangError> {
-    let span = Span::of(&pair);
+fn parse_fun_decl(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<FunDecl, YolangError> {
+    let span = Span::of(&pair, filename);
     let mut inner = pair.into_inner();
     let name = inner.next().ok_or(YolangError::NoMatch)?.as_str().to_string();
     let mut generics    = vec![];
@@ -107,45 +108,45 @@ fn parse_fun_decl(pair: pest::iterators::Pair<Rule>) -> Result<FunDecl, YolangEr
     let mut body        = None;
     for p in inner {
         match p.as_rule() {
-            Rule::generic_params => generics = parse_generic_params(p)?,
-            Rule::param_list     => params   = parse_param_list(p)?,
-            Rule::type_expr      => return_type = Some(parse_type_expr(p)?),
-            Rule::block          => body = Some(parse_block(p)?),
+            Rule::generic_params => generics = parse_generic_params(p, filename)?,
+            Rule::param_list     => params   = parse_param_list(p, filename)?,
+            Rule::type_expr      => return_type = Some(parse_type_expr(p, filename)?),
+            Rule::block          => body = Some(parse_block(p, filename)?),
             _ => {}
         }
     }
     Ok(FunDecl { name, generics, params, return_type, body: body.ok_or(YolangError::NoMatch)?, span })
 }
 
-fn parse_struct_decl(pair: pest::iterators::Pair<Rule>) -> Result<StructDecl, YolangError> {
-    let span = Span::of(&pair);
+fn parse_struct_decl(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<StructDecl, YolangError> {
+    let span = Span::of(&pair, filename);
     let mut inner = pair.into_inner();
     let name = inner.next().ok_or(YolangError::NoMatch)?.as_str().to_string();
     let mut generics = vec![];
     let mut fields   = vec![];
     for p in inner {
         match p.as_rule() {
-            Rule::generic_params => generics = parse_generic_params(p)?,
-            Rule::struct_fields  => fields   = parse_struct_fields(p)?,
+            Rule::generic_params => generics = parse_generic_params(p, filename)?,
+            Rule::struct_fields  => fields   = parse_struct_fields(p, filename)?,
             _ => {}
         }
     }
     Ok(StructDecl { name, generics, fields, span })
 }
 
-fn parse_enum_decl(pair: pest::iterators::Pair<Rule>) -> Result<EnumDecl, YolangError> {
-    let span = Span::of(&pair);
+fn parse_enum_decl(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<EnumDecl, YolangError> {
+    let span = Span::of(&pair, filename);
     let mut inner = pair.into_inner();
     let name = inner.next().ok_or(YolangError::NoMatch)?.as_str().to_string();
     let mut generics = vec![];
     let mut variants = vec![];
     for p in inner {
         match p.as_rule() {
-            Rule::generic_params => generics = parse_generic_params(p)?,
+            Rule::generic_params => generics = parse_generic_params(p, filename)?,
             Rule::enum_variants  => {
                 for v in p.into_inner() {
                     if v.as_rule() == Rule::enum_variant {
-                        variants.push(parse_enum_variant(v)?);
+                        variants.push(parse_enum_variant(v, filename)?);
                     }
                 }
             }
@@ -155,8 +156,8 @@ fn parse_enum_decl(pair: pest::iterators::Pair<Rule>) -> Result<EnumDecl, Yolang
     Ok(EnumDecl { name, generics, variants, span })
 }
 
-fn parse_impl_block(pair: pest::iterators::Pair<Rule>) -> Result<ImplBlock, YolangError> {
-    let span = Span::of(&pair);
+fn parse_impl_block(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<ImplBlock, YolangError> {
+    let span = Span::of(&pair, filename);
     let mut inner       = pair.into_inner();
     let mut trait_name  = None;
     let mut target_type = None;
@@ -177,7 +178,7 @@ fn parse_impl_block(pair: pest::iterators::Pair<Rule>) -> Result<ImplBlock, Yola
         0 => return Err(YolangError::NoMatch),
         1 => {
             // `impl Type { ... }`
-            target_type = Some(parse_type_expr(type_pairs.into_iter().next().unwrap())?);
+            target_type = Some(parse_type_expr(type_pairs.into_iter().next().unwrap(), filename)?);
         }
         2 => {
             // `impl Trait for Type { ... }`
@@ -189,14 +190,14 @@ fn parse_impl_block(pair: pest::iterators::Pair<Rule>) -> Result<ImplBlock, Yola
                 .map(|p| p.as_str().to_string())
                 .collect();
             trait_name = Some(path.join("::"));
-            target_type = Some(parse_type_expr(it.next().unwrap())?);
+            target_type = Some(parse_type_expr(it.next().unwrap(), filename)?);
         }
         _ => return Err(YolangError::NoMatch),
     }
 
     for p in fun_pairs {
         if p.as_rule() == Rule::fun_decl {
-            methods.push(parse_fun_decl(p)?);
+            methods.push(parse_fun_decl(p, filename)?);
         }
     }
 
@@ -204,18 +205,18 @@ fn parse_impl_block(pair: pest::iterators::Pair<Rule>) -> Result<ImplBlock, Yola
 }
 
 
-fn parse_param_list(pair: pest::iterators::Pair<Rule>) -> Result<Vec<Param>, YolangError> {
+fn parse_param_list(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<Vec<Param>, YolangError> {
     let mut params = vec![];
     for p in pair.into_inner() {
         if p.as_rule() == Rule::param {
-            params.push(parse_param(p)?);
+            params.push(parse_param(p, filename)?);
         }
     }
     Ok(params)
 }
 
-fn parse_param(pair: pest::iterators::Pair<Rule>) -> Result<Param, YolangError> {
-    let span = Span::of(&pair);
+fn parse_param(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<Param, YolangError> {
+    let span = Span::of(&pair, filename);
     let text = pair.as_str().trim();
     if text == "self" {
         return Ok(Param { mutable: false, name: "self".into(), type_ann: None, span });
@@ -226,39 +227,39 @@ fn parse_param(pair: pest::iterators::Pair<Rule>) -> Result<Param, YolangError> 
     // ident ":" type_expr
     let mut inner = pair.into_inner();
     let name = inner.next().ok_or(YolangError::NoMatch)?.as_str().to_string();
-    let type_ann = inner.next().map(parse_type_expr).transpose()?;
+    let type_ann = inner.next().map(|p| parse_type_expr(p, filename)).transpose()?;
     Ok(Param { mutable: false, name, type_ann, span })
 }
 
-fn parse_struct_fields(pair: pest::iterators::Pair<Rule>) -> Result<Vec<FieldDef>, YolangError> {
+fn parse_struct_fields(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<Vec<FieldDef>, YolangError> {
     let mut fields = vec![];
     for p in pair.into_inner() {
         if p.as_rule() == Rule::struct_field {
-            let span = Span::of(&p);
+            let span = Span::of(&p, filename);
             let mut it = p.into_inner();
             let name = it.next().ok_or(YolangError::NoMatch)?.as_str().to_string();
-            let type_ann = parse_type_expr(it.next().ok_or(YolangError::NoMatch)?)?;
+            let type_ann = parse_type_expr(it.next().ok_or(YolangError::NoMatch)?, filename)?;
             fields.push(FieldDef { name, type_ann, span });
         }
     }
     Ok(fields)
 }
 
-fn parse_enum_variant(pair: pest::iterators::Pair<Rule>) -> Result<VariantDef, YolangError> {
-    let span = Span::of(&pair);
+fn parse_enum_variant(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<VariantDef, YolangError> {
+    let span = Span::of(&pair, filename);
     let mut inner = pair.into_inner();
     let name = inner.next().ok_or(YolangError::NoMatch)?.as_str().to_string();
     let mut fields = vec![];
     for p in inner {
         if p.as_rule() == Rule::struct_fields {
-            fields = parse_struct_fields(p)?;
+            fields = parse_struct_fields(p, filename)?;
         }
     }
     Ok(VariantDef { name, fields, span })
 }
 
-fn parse_trait_method(pair: pest::iterators::Pair<Rule>) -> Result<TraitMethod, YolangError> {
-    let span = Span::of(&pair);
+fn parse_trait_method(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<TraitMethod, YolangError> {
+    let span = Span::of(&pair, filename);
     let mut inner       = pair.into_inner();
     let name = inner.next().ok_or(YolangError::NoMatch)?.as_str().to_string();
     let mut generics    = vec![];
@@ -267,10 +268,10 @@ fn parse_trait_method(pair: pest::iterators::Pair<Rule>) -> Result<TraitMethod, 
     let mut default_body = None;
     for p in inner {
         match p.as_rule() {
-            Rule::generic_params => generics     = parse_generic_params(p)?,
-            Rule::param_list     => params       = parse_param_list(p)?,
-            Rule::type_expr      => return_type  = Some(parse_type_expr(p)?),
-            Rule::block          => default_body = Some(parse_block(p)?),
+            Rule::generic_params => generics     = parse_generic_params(p, filename)?,
+            Rule::param_list     => params       = parse_param_list(p, filename)?,
+            Rule::type_expr      => return_type  = Some(parse_type_expr(p, filename)?),
+            Rule::block          => default_body = Some(parse_block(p, filename)?),
             _ => {}
         }
     }
@@ -278,36 +279,36 @@ fn parse_trait_method(pair: pest::iterators::Pair<Rule>) -> Result<TraitMethod, 
 }
 
 
-fn parse_stmt(pair: pest::iterators::Pair<Rule>) -> Result<Stmt, YolangError> {
+fn parse_stmt(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<Stmt, YolangError> {
     let inner = pair.into_inner().next().ok_or(YolangError::NoMatch)?;
     match inner.as_rule() {
-        Rule::if_stmt      => Ok(Stmt::If(parse_if_stmt(inner)?)),
-        Rule::while_stmt   => Ok(Stmt::While(parse_while_stmt(inner)?)),
-        Rule::for_stmt     => Ok(Stmt::For(parse_for_stmt(inner)?)),
-        Rule::for_in_stmt  => Ok(Stmt::ForIn(parse_for_in_stmt(inner)?)),
-        Rule::loop_stmt    => Ok(Stmt::Loop(parse_loop_stmt(inner)?)),
-        Rule::match_stmt   => Ok(Stmt::Match(parse_match_expr(inner)?)),
-        Rule::return_stmt  => Ok(Stmt::Return(parse_return_stmt(inner)?)),
-        Rule::break_stmt   => Ok(Stmt::Break(parse_break_stmt(inner)?)),
-        Rule::continue_stmt => Ok(Stmt::Continue(Span::of(&inner))),
+        Rule::if_stmt      => Ok(Stmt::If(parse_if_stmt(inner, filename)?)),
+        Rule::while_stmt   => Ok(Stmt::While(parse_while_stmt(inner, filename)?)),
+        Rule::for_stmt     => Ok(Stmt::For(parse_for_stmt(inner, filename)?)),
+        Rule::for_in_stmt  => Ok(Stmt::ForIn(parse_for_in_stmt(inner, filename)?)),
+        Rule::loop_stmt    => Ok(Stmt::Loop(parse_loop_stmt(inner, filename)?)),
+        Rule::match_stmt   => Ok(Stmt::Match(parse_match_expr(inner, filename)?)),
+        Rule::return_stmt  => Ok(Stmt::Return(parse_return_stmt(inner, filename)?)),
+        Rule::break_stmt   => Ok(Stmt::Break(parse_break_stmt(inner, filename)?)),
+        Rule::continue_stmt => Ok(Stmt::Continue(Span::of(&inner, filename))),
         Rule::expr_stmt    => {
             let expr_pair = inner.into_inner().next().ok_or(YolangError::NoMatch)?;
-            Ok(Stmt::Expr(parse_expr(expr_pair)?))
+            Ok(Stmt::Expr(parse_expr(expr_pair, filename)?))
         }
         _ => Err(YolangError::NoMatch),
     }
 }
 
 
-fn parse_if_stmt(pair: pest::iterators::Pair<Rule>) -> Result<IfStmt, YolangError> {
-    let span = Span::of(&pair);
+fn parse_if_stmt(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<IfStmt, YolangError> {
+    let span = Span::of(&pair, filename);
     let mut inner = pair.into_inner();
-    let condition   = parse_expr(inner.next().ok_or(YolangError::NoMatch)?)?;
-    let then_branch = parse_block(inner.next().ok_or(YolangError::NoMatch)?)?;
+    let condition   = parse_expr(inner.next().ok_or(YolangError::NoMatch)?, filename)?;
+    let then_branch = parse_block(inner.next().ok_or(YolangError::NoMatch)?, filename)?;
     let else_branch = match inner.next() {
         Some(p) => Some(match p.as_rule() {
-            Rule::if_stmt => ElseBranch::If(Box::new(parse_if_stmt(p)?)),
-            Rule::block   => ElseBranch::Block(parse_block(p)?),
+            Rule::if_stmt => ElseBranch::If(Box::new(parse_if_stmt(p, filename)?)),
+            Rule::block   => ElseBranch::Block(parse_block(p, filename)?),
             _ => return Err(YolangError::NoMatch),
         }),
         None => None,
@@ -316,17 +317,17 @@ fn parse_if_stmt(pair: pest::iterators::Pair<Rule>) -> Result<IfStmt, YolangErro
 }
 
 
-fn parse_while_stmt(pair: pest::iterators::Pair<Rule>) -> Result<WhileStmt, YolangError> {
-    let span = Span::of(&pair);
+fn parse_while_stmt(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<WhileStmt, YolangError> {
+    let span = Span::of(&pair, filename);
     let mut inner = pair.into_inner();
-    let condition = parse_expr(inner.next().ok_or(YolangError::NoMatch)?)?;
-    let body      = parse_block(inner.next().ok_or(YolangError::NoMatch)?)?;
+    let condition = parse_expr(inner.next().ok_or(YolangError::NoMatch)?, filename)?;
+    let body      = parse_block(inner.next().ok_or(YolangError::NoMatch)?, filename)?;
     Ok(WhileStmt { condition, body, span })
 }
 
 
-fn parse_for_stmt(pair: pest::iterators::Pair<Rule>) -> Result<ForStmt, YolangError> {
-    let span = Span::of(&pair);
+fn parse_for_stmt(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<ForStmt, YolangError> {
+    let span = Span::of(&pair, filename);
     let mut inner = pair.into_inner();
 
     // for_init
@@ -334,10 +335,10 @@ fn parse_for_stmt(pair: pest::iterators::Pair<Rule>) -> Result<ForStmt, YolangEr
     let init = if init_pair.as_rule() == Rule::for_init {
         match init_pair.into_inner().next() {
             Some(p) => match p.as_rule() {
-                Rule::mut_decl  => Some(ForInit::Mut(parse_mut_decl(p)?)),
+                Rule::mut_decl  => Some(ForInit::Mut(parse_mut_decl(p, filename)?)),
                 Rule::expr_stmt => {
                     let ep = p.into_inner().next().ok_or(YolangError::NoMatch)?;
-                    Some(ForInit::Expr(parse_expr(ep)?))
+                    Some(ForInit::Expr(parse_expr(ep, filename)?))
                 }
                 _ => None, // bare ";"
             },
@@ -353,9 +354,9 @@ fn parse_for_stmt(pair: pest::iterators::Pair<Rule>) -> Result<ForStmt, YolangEr
     let mut body      = None;
     for p in inner {
         match p.as_rule() {
-            Rule::expr  => if condition.is_none() { condition = Some(parse_expr(p)?); }
-                           else                   { step      = Some(parse_expr(p)?); }
-            Rule::block => body = Some(parse_block(p)?),
+            Rule::expr  => if condition.is_none() { condition = Some(parse_expr(p, filename)?); }
+                           else                   { step      = Some(parse_expr(p, filename)?); }
+            Rule::block => body = Some(parse_block(p, filename)?),
             _ => {}
         }
     }
@@ -363,59 +364,59 @@ fn parse_for_stmt(pair: pest::iterators::Pair<Rule>) -> Result<ForStmt, YolangEr
 }
 
 
-fn parse_return_stmt(pair: pest::iterators::Pair<Rule>) -> Result<ReturnStmt, YolangError> {
-    let span  = Span::of(&pair);
-    let value = pair.into_inner().next().map(parse_expr).transpose()?;
+fn parse_return_stmt(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<ReturnStmt, YolangError> {
+    let span  = Span::of(&pair, filename);
+    let value = pair.into_inner().next().map(|p| parse_expr(p, filename)).transpose()?;
     Ok(ReturnStmt { value, span })
 }
 
 
-fn parse_break_stmt(pair: pest::iterators::Pair<Rule>) -> Result<BreakStmt, YolangError> {
-    let span  = Span::of(&pair);
-    let value = pair.into_inner().next().map(parse_expr).transpose()?;
+fn parse_break_stmt(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<BreakStmt, YolangError> {
+    let span  = Span::of(&pair, filename);
+    let value = pair.into_inner().next().map(|p| parse_expr(p, filename)).transpose()?;
     Ok(BreakStmt { value, span })
 }
 
 
 /// Entry point: consumes one `expr` pair.
-fn parse_expr(pair: pest::iterators::Pair<Rule>) -> Result<Expr, YolangError> {
+fn parse_expr(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<Expr, YolangError> {
     match pair.as_rule() {
         Rule::expr => {
             let inner = pair.into_inner().next().ok_or(YolangError::NoMatch)?;
-            parse_expr(inner)
+            parse_expr(inner, filename)
         }
-        Rule::assign_expr => parse_assign_expr(pair),
-        Rule::or_expr     => parse_lr_binary(pair),
-        Rule::and_expr    => parse_lr_binary(pair),
-        Rule::cmp_expr    => parse_lr_binary(pair),
-        Rule::range_expr  => parse_lr_binary(pair),
-        Rule::add_expr    => parse_lr_binary(pair),
-        Rule::mul_expr    => parse_lr_binary(pair),
-        Rule::cast_expr   => parse_cast_expr(pair),
-        Rule::unary_expr  => parse_unary_expr(pair),
-        Rule::postfix_expr => parse_postfix_expr(pair),
+        Rule::assign_expr => parse_assign_expr(pair, filename),
+        Rule::or_expr     => parse_lr_binary(pair, filename),
+        Rule::and_expr    => parse_lr_binary(pair, filename),
+        Rule::cmp_expr    => parse_lr_binary(pair, filename),
+        Rule::range_expr  => parse_lr_binary(pair, filename),
+        Rule::add_expr    => parse_lr_binary(pair, filename),
+        Rule::mul_expr    => parse_lr_binary(pair, filename),
+        Rule::cast_expr   => parse_cast_expr(pair, filename),
+        Rule::unary_expr  => parse_unary_expr(pair, filename),
+        Rule::postfix_expr => parse_postfix_expr(pair, filename),
         Rule::primary_expr => {
             let inner = pair.into_inner().next().ok_or(YolangError::NoMatch)?;
-            parse_expr(inner)
+            parse_expr(inner, filename)
         }
         // Terminals and composites reachable from primary_expr
         Rule::int_lit | Rule::float_lit | Rule::string_lit
-        | Rule::bool_lit | Rule::nope_lit | Rule::unit_lit => parse_literal_expr(pair),
-        Rule::path_expr     => parse_path_expr(pair),
-        Rule::tuple_or_paren => parse_tuple_or_paren(pair),
-        Rule::array_lit     => parse_array_lit(pair),
-        Rule::match_expr    => Ok(Expr::Match(parse_match_expr(pair)?)),
-        Rule::match_stmt    => Ok(Expr::Match(parse_match_expr(pair)?)),
-        Rule::if_expr       => parse_if_expr(pair),
-        Rule::loop_expr     => parse_loop_expr(pair),
-        Rule::closure_expr  => parse_closure_expr(pair),
-        Rule::struct_literal => parse_struct_literal(pair),
+        | Rule::bool_lit | Rule::nope_lit | Rule::unit_lit => parse_literal_expr(pair, filename),
+        Rule::path_expr     => parse_path_expr(pair, filename),
+        Rule::tuple_or_paren => parse_tuple_or_paren(pair, filename),
+        Rule::array_lit     => parse_array_lit(pair, filename),
+        Rule::match_expr    => Ok(Expr::Match(parse_match_expr(pair, filename)?)),
+        Rule::match_stmt    => Ok(Expr::Match(parse_match_expr(pair, filename)?)),
+        Rule::if_expr       => parse_if_expr(pair, filename),
+        Rule::loop_expr     => parse_loop_expr(pair, filename),
+        Rule::closure_expr  => parse_closure_expr(pair, filename),
+        Rule::struct_literal => parse_struct_literal(pair, filename),
         _ => Err(YolangError::NoMatch),
     }
 }
 
-fn parse_literal_expr(pair: pest::iterators::Pair<Rule>) -> Result<Expr, YolangError> {
-    let span = Span::of(&pair);
+fn parse_literal_expr(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<Expr, YolangError> {
+    let span = Span::of(&pair, filename);
     let text = pair.as_str();
     let lit = match pair.as_rule() {
         Rule::int_lit    => Literal::Int(text.replace('_', "").parse().map_err(|_| YolangError::NoMatch)?),
@@ -429,8 +430,8 @@ fn parse_literal_expr(pair: pest::iterators::Pair<Rule>) -> Result<Expr, YolangE
     Ok(Expr::Literal(lit, span))
 }
 
-fn parse_path_expr(pair: pest::iterators::Pair<Rule>) -> Result<Expr, YolangError> {
-    let span  = Span::of(&pair);
+fn parse_path_expr(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<Expr, YolangError> {
+    let span  = Span::of(&pair, filename);
     let parts: Vec<String> = pair.into_inner()
         .filter(|p| p.as_rule() == Rule::ident)
         .map(|p| p.as_str().to_string())
@@ -442,11 +443,11 @@ fn parse_path_expr(pair: pest::iterators::Pair<Rule>) -> Result<Expr, YolangErro
     }
 }
 
-fn parse_tuple_or_paren(pair: pest::iterators::Pair<Rule>) -> Result<Expr, YolangError> {
-    let span = Span::of(&pair);
+fn parse_tuple_or_paren(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<Expr, YolangError> {
+    let span = Span::of(&pair, filename);
     let elems: Vec<Expr> = pair.into_inner()
         .filter(|p| p.as_rule() == Rule::expr)
-        .map(parse_expr)
+        .map(|p| parse_expr(p, filename))
         .collect::<Result<_, _>>()?;
     if elems.len() == 1 {
         Ok(elems.into_iter().next().unwrap())
@@ -455,48 +456,48 @@ fn parse_tuple_or_paren(pair: pest::iterators::Pair<Rule>) -> Result<Expr, Yolan
     }
 }
 
-fn parse_array_lit(pair: pest::iterators::Pair<Rule>) -> Result<Expr, YolangError> {
-    let span = Span::of(&pair);
+fn parse_array_lit(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<Expr, YolangError> {
+    let span = Span::of(&pair, filename);
     let elems = pair.into_inner()
         .filter(|p| p.as_rule() == Rule::expr)
-        .map(parse_expr)
+        .map(|p| parse_expr(p, filename))
         .collect::<Result<_, _>>()?;
     Ok(Expr::Array(elems, span))
 }
 
-fn parse_if_expr(pair: pest::iterators::Pair<Rule>) -> Result<Expr, YolangError> {
-    let span = Span::of(&pair);
+fn parse_if_expr(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<Expr, YolangError> {
+    let span = Span::of(&pair, filename);
     let mut inner = pair.into_inner();
-    let condition   = parse_expr(inner.next().ok_or(YolangError::NoMatch)?)?;
-    let then_branch = parse_block(inner.next().ok_or(YolangError::NoMatch)?)?;
-    let else_branch = parse_block(inner.next().ok_or(YolangError::NoMatch)?)?;
+    let condition   = parse_expr(inner.next().ok_or(YolangError::NoMatch)?, filename)?;
+    let then_branch = parse_block(inner.next().ok_or(YolangError::NoMatch)?, filename)?;
+    let else_branch = parse_block(inner.next().ok_or(YolangError::NoMatch)?, filename)?;
     Ok(Expr::If { condition: Box::new(condition), then_branch, else_branch, span })
 }
 
-fn parse_loop_expr(pair: pest::iterators::Pair<Rule>) -> Result<Expr, YolangError> {
-    let span = Span::of(&pair);
-    let body = parse_block(pair.into_inner().next().ok_or(YolangError::NoMatch)?)?;
+fn parse_loop_expr(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<Expr, YolangError> {
+    let span = Span::of(&pair, filename);
+    let body = parse_block(pair.into_inner().next().ok_or(YolangError::NoMatch)?, filename)?;
     Ok(Expr::Loop { body, span })
 }
 
-fn parse_closure_expr(pair: pest::iterators::Pair<Rule>) -> Result<Expr, YolangError> {
-    let span = Span::of(&pair);
+fn parse_closure_expr(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<Expr, YolangError> {
+    let span = Span::of(&pair, filename);
     let mut params      = vec![];
     let mut return_type = None;
     let mut body        = None;
     for p in pair.into_inner() {
         match p.as_rule() {
-            Rule::param_list => params      = parse_param_list(p)?,
-            Rule::type_expr  => return_type = Some(parse_type_expr(p)?),
-            Rule::block      => body        = Some(parse_block(p)?),
+            Rule::param_list => params      = parse_param_list(p, filename)?,
+            Rule::type_expr  => return_type = Some(parse_type_expr(p, filename)?),
+            Rule::block      => body        = Some(parse_block(p, filename)?),
             _ => {}
         }
     }
     Ok(Expr::Closure { params, return_type, body: body.ok_or(YolangError::NoMatch)?, span })
 }
 
-fn parse_struct_literal(pair: pest::iterators::Pair<Rule>) -> Result<Expr, YolangError> {
-    let span = Span::of(&pair);
+fn parse_struct_literal(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<Expr, YolangError> {
+    let span = Span::of(&pair, filename);
     let mut inner = pair.into_inner();
     let path_pair = inner.next().ok_or(YolangError::NoMatch)?;
     let path: Vec<String> = path_pair.into_inner()
@@ -508,7 +509,7 @@ fn parse_struct_literal(pair: pest::iterators::Pair<Rule>) -> Result<Expr, Yolan
         if p.as_rule() == Rule::field_init {
             let mut it = p.into_inner();
             let name  = it.next().ok_or(YolangError::NoMatch)?.as_str().to_string();
-            let value = parse_expr(it.next().ok_or(YolangError::NoMatch)?)?;
+            let value = parse_expr(it.next().ok_or(YolangError::NoMatch)?, filename)?;
             fields.push((name, value));
         }
     }
@@ -517,8 +518,8 @@ fn parse_struct_literal(pair: pest::iterators::Pair<Rule>) -> Result<Expr, Yolan
 
 // ── Assignment ────────────────────────────────────────────────────────────────
 
-fn parse_assign_expr(pair: pest::iterators::Pair<Rule>) -> Result<Expr, YolangError> {
-    let span  = Span::of(&pair);
+fn parse_assign_expr(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<Expr, YolangError> {
+    let span  = Span::of(&pair, filename);
     let mut inner = pair.into_inner();
     let first = inner.next().ok_or(YolangError::NoMatch)?;
 
@@ -527,19 +528,19 @@ fn parse_assign_expr(pair: pest::iterators::Pair<Rule>) -> Result<Expr, YolangEr
     // Otherwise it's an or_expr chain.
     match first.as_rule() {
         Rule::postfix_expr => {
-            let lhs = parse_postfix_expr(first)?;
+            let lhs = parse_postfix_expr(first, filename)?;
             match inner.next() {
                 Some(op_pair) if op_pair.as_rule() == Rule::assign_op => {
                     let op     = parse_assign_op(op_pair.as_str());
-                    let rhs    = parse_expr(inner.next().ok_or(YolangError::NoMatch)?)?;
+                    let rhs    = parse_expr(inner.next().ok_or(YolangError::NoMatch)?, filename)?;
                     let target = expr_to_assign_target(lhs)?;
                     Ok(Expr::Assign { target, op, value: Box::new(rhs), span })
                 }
                 _ => Ok(lhs), // shouldn't happen with valid grammar
             }
         }
-        Rule::or_expr => parse_lr_binary(first),
-        _             => parse_expr(first),
+        Rule::or_expr => parse_lr_binary(first, filename),
+        _             => parse_expr(first, filename),
     }
 }
 
@@ -547,18 +548,18 @@ fn parse_assign_expr(pair: pest::iterators::Pair<Rule>) -> Result<Expr, YolangEr
 
 /// Handles or_expr, and_expr, cmp_expr, range_expr, add_expr, mul_expr.
 /// All follow the pattern: operand (op operand)* where op is a named rule.
-fn parse_lr_binary(pair: pest::iterators::Pair<Rule>) -> Result<Expr, YolangError> {
-    let span  = Span::of(&pair);
+fn parse_lr_binary(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<Expr, YolangError> {
+    let span  = Span::of(&pair, filename);
     let mut inner = pair.into_inner();
     let first = inner.next().ok_or(YolangError::NoMatch)?;
-    let mut expr = parse_expr(first)?;
+    let mut expr = parse_expr(first, filename)?;
 
     // Consume op/operand pairs
     while let Some(op_pair) = inner.next() {
         let op      = parse_bin_op(&op_pair);
         let rhs_pair = inner.next().ok_or(YolangError::NoMatch)?;
-        let rhs     = parse_expr(rhs_pair)?;
-        let op_span = Span::of(&op_pair);
+        let rhs     = parse_expr(rhs_pair, filename)?;
+        let op_span = Span::of(&op_pair, filename);
         expr = Expr::BinOp(Box::new(expr), op, Box::new(rhs), op_span);
     }
     let _ = span; // span used in outer call if needed
@@ -567,14 +568,14 @@ fn parse_lr_binary(pair: pest::iterators::Pair<Rule>) -> Result<Expr, YolangErro
 
 // ── Cast ──────────────────────────────────────────────────────────────────────
 
-fn parse_cast_expr(pair: pest::iterators::Pair<Rule>) -> Result<Expr, YolangError> {
-    let span  = Span::of(&pair);
+fn parse_cast_expr(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<Expr, YolangError> {
+    let span  = Span::of(&pair, filename);
     let mut inner = pair.into_inner();
     let first = inner.next().ok_or(YolangError::NoMatch)?;
-    let mut expr = parse_expr(first)?;
+    let mut expr = parse_expr(first, filename)?;
     for p in inner {
         if p.as_rule() == Rule::type_expr {
-            let target_type = parse_type_expr(p)?;
+            let target_type = parse_type_expr(p, filename)?;
             expr = Expr::Cast { expr: Box::new(expr), target_type, span: span.clone() };
         }
     }
@@ -583,48 +584,48 @@ fn parse_cast_expr(pair: pest::iterators::Pair<Rule>) -> Result<Expr, YolangErro
 
 // ── Unary ─────────────────────────────────────────────────────────────────────
 
-fn parse_unary_expr(pair: pest::iterators::Pair<Rule>) -> Result<Expr, YolangError> {
-    let span = Span::of(&pair);
+fn parse_unary_expr(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<Expr, YolangError> {
+    let span = Span::of(&pair, filename);
     let text = pair.as_str();
     let child = pair.into_inner().next().ok_or(YolangError::NoMatch)?;
     if text.starts_with('!') {
-        Ok(Expr::UnaryOp(UnaryOp::Not, Box::new(parse_expr(child)?), span))
+        Ok(Expr::UnaryOp(UnaryOp::Not, Box::new(parse_expr(child, filename)?), span))
     } else if text.starts_with('-') {
-        Ok(Expr::UnaryOp(UnaryOp::Neg, Box::new(parse_expr(child)?), span))
+        Ok(Expr::UnaryOp(UnaryOp::Neg, Box::new(parse_expr(child, filename)?), span))
     } else {
-        parse_expr(child)
+        parse_expr(child, filename)
     }
 }
 
 // ── Postfix ───────────────────────────────────────────────────────────────────
 
-fn parse_postfix_expr(pair: pest::iterators::Pair<Rule>) -> Result<Expr, YolangError> {
+fn parse_postfix_expr(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<Expr, YolangError> {
     let mut inner = pair.into_inner();
     let primary = inner.next().ok_or(YolangError::NoMatch)?;
-    let mut expr = parse_expr(primary)?;
+    let mut expr = parse_expr(primary, filename)?;
     for postfix in inner {
         if postfix.as_rule() == Rule::postfix {
-            expr = apply_postfix(expr, postfix)?;
+            expr = apply_postfix(expr, postfix, filename)?;
         }
     }
     Ok(expr)
 }
 
-fn apply_postfix(base: Expr, pair: pest::iterators::Pair<Rule>) -> Result<Expr, YolangError> {
-    let span = Span::of(&pair);
+fn apply_postfix(base: Expr, pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<Expr, YolangError> {
+    let span = Span::of(&pair, filename);
     let text = pair.as_str();
     let mut inner = pair.into_inner();
 
     if text.starts_with('(') {
         // Function call: postfix children are (arg_list?), so unwrap one level
         let args = match inner.next() {
-            Some(a) if a.as_rule() == Rule::arg_list => collect_args(a.into_inner())?,
+            Some(a) if a.as_rule() == Rule::arg_list => collect_args(a.into_inner(), filename)?,
             _ => vec![],
         };
         Ok(Expr::Call { callee: Box::new(base), args, span })
     } else if text.starts_with('[') {
         // Index
-        let idx = parse_expr(inner.next().ok_or(YolangError::NoMatch)?)?;
+        let idx = parse_expr(inner.next().ok_or(YolangError::NoMatch)?, filename)?;
         Ok(Expr::Index { object: Box::new(base), index: Box::new(idx), span })
     } else if text == "?" {
         Ok(Expr::PropagateError { expr: Box::new(base), span })
@@ -641,7 +642,7 @@ fn apply_postfix(base: Expr, pair: pest::iterators::Pair<Rule>) -> Result<Expr, 
                 // If a `(` follows in the text, it's a method call
                 if text.contains('(') {
                     let args = match inner.next() {
-                        Some(a) if a.as_rule() == Rule::arg_list => collect_args(a.into_inner())?,
+                        Some(a) if a.as_rule() == Rule::arg_list => collect_args(a.into_inner(), filename)?,
                         _ => vec![],
                     };
                     Ok(Expr::MethodCall { receiver: Box::new(base), method: name, args, span })
@@ -656,58 +657,59 @@ fn apply_postfix(base: Expr, pair: pest::iterators::Pair<Rule>) -> Result<Expr, 
 
 fn collect_args(
     pairs: pest::iterators::Pairs<Rule>,
+    filename: &str
 ) -> Result<Vec<Expr>, YolangError> {
     pairs.filter(|p| p.as_rule() == Rule::expr)
-         .map(parse_expr)
+         .map(|p| parse_expr(p, filename))
          .collect()
 }
 
 
-fn parse_match_expr(pair: pest::iterators::Pair<Rule>) -> Result<MatchExpr, YolangError> {
-    let span = Span::of(&pair);
+fn parse_match_expr(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<MatchExpr, YolangError> {
+    let span = Span::of(&pair, filename);
     let mut inner = pair.into_inner();
-    let scrutinee = parse_expr(inner.next().ok_or(YolangError::NoMatch)?)?;
+    let scrutinee = parse_expr(inner.next().ok_or(YolangError::NoMatch)?, filename)?;
     let arms: Vec<MatchArm> = inner
         .filter(|p| p.as_rule() == Rule::match_arm)
-        .map(parse_match_arm)
+        .map(|p| parse_match_arm(p, filename))
         .collect::<Result<_, _>>()?;
     Ok(MatchExpr { scrutinee: Box::new(scrutinee), arms, span })
 }
 
 
-fn parse_match_arm(pair: pest::iterators::Pair<Rule>) -> Result<MatchArm, YolangError> {
-    let span = Span::of(&pair);
+fn parse_match_arm(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<MatchArm, YolangError> {
+    let span = Span::of(&pair, filename);
     let mut inner = pair.into_inner();
-    let pattern = parse_pattern(inner.next().ok_or(YolangError::NoMatch)?)?;
+    let pattern = parse_pattern(inner.next().ok_or(YolangError::NoMatch)?, filename)?;
 
     // Remaining children: optionally a guard `expr`, then the body `expr`.
     let mut exprs: Vec<pest::iterators::Pair<Rule>> = inner
         .filter(|p| p.as_rule() == Rule::expr)
         .collect();
 
-    let body  = parse_expr(exprs.pop().ok_or(YolangError::NoMatch)?)?;
-    let guard = exprs.into_iter().next().map(parse_expr).transpose()?;
+    let body  = parse_expr(exprs.pop().ok_or(YolangError::NoMatch)?, filename)?;
+    let guard = exprs.into_iter().next().map(|p| parse_expr(p, filename)).transpose()?;
 
     Ok(MatchArm { pattern, guard, body, span })
 }
 
-fn parse_pattern(pair: pest::iterators::Pair<Rule>) -> Result<Pattern, YolangError> {
+fn parse_pattern(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<Pattern, YolangError> {
     match pair.as_rule() {
         Rule::pattern => {
             let inner = pair.into_inner().next().ok_or(YolangError::NoMatch)?;
-            parse_pattern(inner)
+            parse_pattern(inner, filename)
         }
-        Rule::nope_lit => Ok(Pattern::Nope(Span::of(&pair))),
+        Rule::nope_lit => Ok(Pattern::Nope(Span::of(&pair, filename))),
         Rule::tuple_pattern => {
-            let span = Span::of(&pair);
+            let span = Span::of(&pair,filename);
             let pats = pair.into_inner()
                 .filter(|p| p.as_rule() == Rule::pattern)
-                .map(parse_pattern)
+                .map(|p| parse_pattern(p, filename))
                 .collect::<Result<_, _>>()?;
             Ok(Pattern::Tuple(pats, span))
         }
         Rule::enum_pattern => {
-            let span = Span::of(&pair);
+            let span = Span::of(&pair, filename);
             let idents: Vec<String> = pair.into_inner()
                 .filter(|p| p.as_rule() == Rule::ident)
                 .map(|p| p.as_str().to_string())
@@ -722,7 +724,7 @@ fn parse_pattern(pair: pest::iterators::Pair<Rule>) -> Result<Pattern, YolangErr
             Ok(Pattern::EnumVariant { path, fields, span })
         }
         Rule::literal_pattern => {
-            let span = Span::of(&pair);
+            let span = Span::of(&pair, filename);
             let lit_pair = pair.into_inner().next().ok_or(YolangError::NoMatch)?;
             let text = lit_pair.as_str();
             let lit = match lit_pair.as_rule() {
@@ -735,7 +737,7 @@ fn parse_pattern(pair: pest::iterators::Pair<Rule>) -> Result<Pattern, YolangErr
             Ok(Pattern::Literal(lit, span))
         }
         Rule::bind_pattern => {
-            let span = Span::of(&pair);
+            let span = Span::of(&pair, filename);
             let name = pair.into_inner().next().ok_or(YolangError::NoMatch)?.as_str().to_string();
             Ok(Pattern::Binding(name, span))
         }
@@ -744,7 +746,7 @@ fn parse_pattern(pair: pest::iterators::Pair<Rule>) -> Result<Pattern, YolangErr
         // `pair.as_str() == "_"` — handled by the outer `pattern` arm above
         // which recurses into the single child. If there is no child and the
         // text is "_", we match here.
-        _ if pair.as_str().trim() == "_" => Ok(Pattern::Wildcard(Span::of(&pair))),
+        _ if pair.as_str().trim() == "_" => Ok(Pattern::Wildcard(Span::of(&pair, filename))),
         _ => Err(YolangError::NoMatch),
     }
 }
@@ -787,22 +789,22 @@ fn expr_to_assign_target(expr: Expr) -> Result<AssignTarget, YolangError> {
 }
 
 
-fn parse_type_expr(pair: pest::iterators::Pair<Rule>) -> Result<TypeExpr, YolangError> {
+fn parse_type_expr(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<TypeExpr, YolangError> {
     match pair.as_rule() {
         Rule::type_expr => {
             let inner = pair.into_inner().next().ok_or(YolangError::NoMatch)?;
-            parse_type_expr(inner)
+            parse_type_expr(inner, filename)
         }
         Rule::unit_type  => Ok(TypeExpr::Unit),
         Rule::tuple_type => {
             let elems = pair.into_inner()
                 .filter(|p| p.as_rule() == Rule::type_expr)
-                .map(parse_type_expr)
+                .map(|p| parse_type_expr(p, filename))
                 .collect::<Result<_, _>>()?;
             Ok(TypeExpr::Tuple(elems))
         }
         Rule::array_type => {
-            let elem = parse_type_expr(pair.into_inner().next().ok_or(YolangError::NoMatch)?)?;
+            let elem = parse_type_expr(pair.into_inner().next().ok_or(YolangError::NoMatch)?, filename)?;
             Ok(TypeExpr::Array(Box::new(elem)))
         }
         Rule::fun_type => {
@@ -813,10 +815,10 @@ fn parse_type_expr(pair: pest::iterators::Pair<Rule>) -> Result<TypeExpr, Yolang
                     Rule::type_list => {
                         params = p.into_inner()
                             .filter(|q| q.as_rule() == Rule::type_expr)
-                            .map(parse_type_expr)
+                            .map(|p| parse_type_expr(p, filename))
                             .collect::<Result<_, _>>()?;
                     }
-                    Rule::type_expr => return_type = Some(Box::new(parse_type_expr(p)?)),
+                    Rule::type_expr => return_type = Some(Box::new(parse_type_expr(p, filename)?)),
                     _ => {}
                 }
             }
@@ -830,7 +832,7 @@ fn parse_type_expr(pair: pest::iterators::Pair<Rule>) -> Result<TypeExpr, Yolang
                 if p.as_rule() == Rule::type_args {
                     args = p.into_inner()
                         .filter(|q| q.as_rule() == Rule::type_expr)
-                        .map(parse_type_expr)
+                        .map(|p| parse_type_expr(p, filename))
                         .collect::<Result<_, _>>()?;
                 }
             }
@@ -840,57 +842,57 @@ fn parse_type_expr(pair: pest::iterators::Pair<Rule>) -> Result<TypeExpr, Yolang
     }
 }
 
-fn parse_for_in_stmt(pair: pest::iterators::Pair<Rule>) -> Result<ForInStmt, YolangError> {
-    let span = Span::of(&pair);
+fn parse_for_in_stmt(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<ForInStmt, YolangError> {
+    let span = Span::of(&pair, filename);
     let mut inner = pair.into_inner();
     let binding  = inner.next().ok_or(YolangError::NoMatch)?.as_str().to_string();
-    let iterable = parse_expr(inner.next().ok_or(YolangError::NoMatch)?)?;
-    let body     = parse_block(inner.next().ok_or(YolangError::NoMatch)?)?;
+    let iterable = parse_expr(inner.next().ok_or(YolangError::NoMatch)?, filename)?;
+    let body     = parse_block(inner.next().ok_or(YolangError::NoMatch)?, filename)?;
     Ok(ForInStmt { binding, iterable, body, span })
 }
 
-fn parse_block(pair: pest::iterators::Pair<Rule>) -> Result<Block, YolangError> {
-    let span = Span::of(&pair);
+fn parse_block(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<Block, YolangError> {
+    let span = Span::of(&pair, filename);
     let mut stmts = vec![];
     let mut tail  = None;
     for p in pair.into_inner() {
         match p.as_rule() {
-            Rule::decl => stmts.push(parse_decl(p)?),
-            Rule::expr => tail = Some(Box::new(parse_expr(p)?)),
+            Rule::decl => stmts.push(parse_decl(p, filename)?),
+            Rule::expr => tail = Some(Box::new(parse_expr(p, filename)?)),
             _ => {}
         }
     }
     Ok(Block { stmts, tail, span })
 }
 
-fn parse_generic_params(pair: pest::iterators::Pair<Rule>) -> Result<Vec<GenericParam>, YolangError> {
+fn parse_generic_params(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<Vec<GenericParam>, YolangError> {
     let mut params = vec![];
     for p in pair.into_inner() {
         if p.as_rule() == Rule::generic_param {
             let mut it = p.into_inner();
             let name = it.next().ok_or(YolangError::NoMatch)?.as_str().to_string();
-            let bound = it.next().map(parse_type_expr).transpose()?;
+            let bound = it.next().map(|p| parse_type_expr(p, filename)).transpose()?;
             params.push(GenericParam { name, bound });
         }
     }
     Ok(params)
 }
-fn parse_trait_decl(pair: pest::iterators::Pair<Rule>) -> Result<TraitDecl, YolangError> {
-    let span = Span::of(&pair);
+fn parse_trait_decl(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<TraitDecl, YolangError> {
+    let span = Span::of(&pair, filename);
     let mut inner = pair.into_inner();
     let name = inner.next().ok_or(YolangError::NoMatch)?.as_str().to_string();
     let mut methods = vec![];
     for p in inner {
         if p.as_rule() == Rule::trait_method {
-            methods.push(parse_trait_method(p)?);
+            methods.push(parse_trait_method(p, filename)?);
         }
     }
     Ok(TraitDecl { name, methods, span })
 }
 
-fn parse_loop_stmt(pair: pest::iterators::Pair<Rule>) -> Result<LoopStmt, YolangError> {
-    let span = Span::of(&pair);
-    let body = parse_block(pair.into_inner().next().ok_or(YolangError::NoMatch)?)?;
+fn parse_loop_stmt(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<LoopStmt, YolangError> {
+    let span = Span::of(&pair, filename);
+    let body = parse_block(pair.into_inner().next().ok_or(YolangError::NoMatch)?, filename)?;
     Ok(LoopStmt { body, span })
 }
 

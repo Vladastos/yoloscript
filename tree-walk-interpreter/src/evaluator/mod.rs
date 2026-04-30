@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::error::{Span, YolangError};
+use crate::ast::Span;
+use crate::error::YolangError;
 use crate::typed_ast::TypedProgram;
 
 // ── Runtime values ────────────────────────────────────────────────────────────

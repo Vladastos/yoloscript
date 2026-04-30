@@ -2,17 +2,24 @@ use crate::parser::Rule;
 
 // ── Span ──────────────────────────────────────────────────────────────────────
 
-/// Byte-offset source location, carried through the AST for error reporting.
+/// Source location (byte offsets into the original source string).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Span {
     pub start: usize,
-    pub end:   usize,
+    pub end: usize,
+    pub filename: String,
 }
 
 impl Span {
-    pub fn of(pair: &pest::iterators::Pair<Rule>) -> Self {
+    pub fn new(start: usize, end: usize, filename: impl Into<String>) -> Self {
+        Self { start, end, filename: filename.into() }
+    }
+}
+
+impl Span {
+    pub fn of(pair: &pest::iterators::Pair<Rule>, filename: impl Into<String>) -> Self {
         let s = pair.as_span();
-        Span { start: s.start(), end: s.end() }
+        Span { start: s.start(), end: s.end(), filename: filename.into() }
     }
 }
 

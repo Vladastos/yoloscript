@@ -548,10 +548,12 @@ pub fn solve_constraints(constraints: Vec<Constraint>) -> Result<Substitution, Y
 
     for constraint in constraints {
         subst = unify(&constraint.lhs, &constraint.rhs, &subst).map_err(|msg| {
-            YolangError::TypeError(format!(
-                "Type error at {:?}: {}",
-                constraint.span, msg
-            ))
+            YolangError::TypeError {
+                message: format!("{}", msg),
+                start: constraint.span.start,
+                end: constraint.span.end,
+                filename: constraint.span.filename.clone(),
+            }
         })?;
     }
 
@@ -566,10 +568,12 @@ pub fn resolve_type(ty: &InferType, subst: &Substitution) -> Result<Type, Yolang
     match resolved {
         InferType::Concrete(t) => Ok(t),
         InferType::Var(v) => {
-            Err(YolangError::TypeError(format!(
-                "Unresolved type variable: {}",
-                v
-            )))
+            Err(YolangError::TypeError {
+                message: format!("Unresolved type variable: {}", v),
+                start: 0,
+                end: 0,
+                filename: String::from("<internal>"),
+            })
         }
         InferType::Fun(params, ret) => {
             let params = params

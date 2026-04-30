@@ -1,18 +1,8 @@
 use thiserror::Error;
 
-/// Source location (byte offsets into the original source string).
-#[derive(Debug, Clone, PartialEq)]
-pub struct Span {
-    pub start: usize,
-    pub end: usize,
-    pub filename: String,
-}
+use crate::ast::Span;
 
-impl Span {
-    pub fn new(start: usize, end: usize, filename: impl Into<String>) -> Self {
-        Self { start, end, filename: filename.into() }
-    }
-}
+
 
 /// All errors that can be produced at any stage of the pipeline.
 #[derive(Debug, Error)]
