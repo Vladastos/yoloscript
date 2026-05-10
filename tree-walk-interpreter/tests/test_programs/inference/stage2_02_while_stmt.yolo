@@ -1,0 +1,15 @@
+// Stage 2: while statement
+//
+// Condition must be Bool; body is inferred.
+
+fun loop_while(b: Bool) {
+    while (b) {
+    }
+}
+
+fun while_with_computation(x: Int) {
+    let keep_going: Bool = x > 0;
+    while (keep_going) {
+        return;
+    }
+}

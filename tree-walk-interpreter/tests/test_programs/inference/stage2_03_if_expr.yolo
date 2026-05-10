@@ -1,0 +1,22 @@
+// Stage 2: if-as-expression
+//
+// if-expr only appears in expression context (let binding value, binary operand,
+// etc.) — never directly as a block tail, because the parser's greedy decl* rule
+// always consumes if...else as if_stmt inside a block.
+//
+// Both branches must unify to the same type; that type is the result.
+
+fun max_int(a: Int, b: Int) -> Int {
+    let result: Int = if (a > b) { a } else { b };
+    result
+}
+
+fun to_int(b: Bool) -> Int {
+    let result: Int = if (b) { 1 } else { 0 };
+    result
+}
+
+fun if_expr_in_arithmetic(x: Int) -> Int {
+    let sign: Int = if (x >= 0) { 1 } else { 0 - 1 };
+    sign
+}

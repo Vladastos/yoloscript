@@ -185,6 +185,7 @@
   },
   "active": "0e75aa3b1ffecbda",
   "lastOpenFiles": [
+    "05-TASKS/epic-005-typechecker-integration/done/0002-stage2-control-flow.md",
     "05-TASKS/epic-005-typechecker-integration/open/0005-evaluator-integration.md",
     "05-TASKS/epic-005-typechecker-integration/open/0004-stage4-advanced-expressions.md",
     "05-TASKS/epic-005-typechecker-integration/open/0003-stage3-composite-expressions.md",
@@ -219,7 +220,6 @@
     "implementation/Roadmap.md",
     "implementation/Interpreter.md",
     "implementation/Parser.md",
-    "implementation/Scanner.md",
-    "implementation/Architecture.md"
+    "implementation/Scanner.md"
   ]
 }

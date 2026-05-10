@@ -1,0 +1,19 @@
+// Stage 2: else-if chains (statement form)
+//
+// ElseBranch::If is handled recursively; each condition must be Bool.
+
+fun check_range(x: Int) {
+    if (x < 0) {
+        return;
+    } else if (x > 100) {
+        return;
+    } else {
+        return;
+    }
+}
+
+fun multi_branch(a: Bool, b: Bool) {
+    if (a) {
+    } else if (b) {
+    }
+}

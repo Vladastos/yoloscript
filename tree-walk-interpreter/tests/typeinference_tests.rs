@@ -1067,4 +1067,33 @@ mod programs_tests {
     fn stage1_neg_annotation_required() {
         check_file(&format!("{}/neg_02_annotation_required.yolo", test_dir()));
     }
+
+    // ── Stage 2 positive tests ────────────────────────────────────────────────
+
+    #[test]
+    fn stage2_if_stmt() {
+        check_file(&format!("{}/stage2_01_if_stmt.yolo", test_dir()));
+    }
+
+    #[test]
+    fn stage2_while_stmt() {
+        check_file(&format!("{}/stage2_02_while_stmt.yolo", test_dir()));
+    }
+
+    #[test]
+    fn stage2_if_expr() {
+        check_file(&format!("{}/stage2_03_if_expr.yolo", test_dir()));
+    }
+
+    #[test]
+    fn stage2_else_if() {
+        check_file(&format!("{}/stage2_04_else_if.yolo", test_dir()));
+    }
+
+    // ── Stage 2 negative tests ────────────────────────────────────────────────
+
+    #[test]
+    fn stage2_neg_non_bool_condition() {
+        check_file(&format!("{}/stage2_neg_01_non_bool_condition.yolo", test_dir()));
+    }
 }

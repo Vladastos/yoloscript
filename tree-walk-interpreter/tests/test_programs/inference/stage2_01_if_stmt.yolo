@@ -1,0 +1,16 @@
+// Stage 2: if statement
+//
+// Condition must be Bool; body is inferred; no value is produced.
+
+fun abs_via_if(x: Int) -> Int {
+    if (x < 0) {
+        return 0 - x;
+    }
+    x
+}
+
+fun no_else(b: Bool) {
+    if (b) {
+        return;
+    }
+}

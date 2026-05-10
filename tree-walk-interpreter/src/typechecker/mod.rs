@@ -76,7 +76,7 @@ fn infer_decl(
 ) -> Result<(), YoloscriptError> {
     match decl {
         Decl::Let(ld) => {
-            let val_ty = infer_expr(&ld.value, ctx)?;
+            let val_ty = infer_expr(&ld.value, ctx, pending)?;
             if let Some(ann) = &ld.type_ann {
                 ctx.add_constraint(val_ty.clone(), type_expr_to_infer(ann), ld.span.clone());
             }
@@ -84,7 +84,7 @@ fn infer_decl(
             Ok(())
         }
         Decl::Mut(md) => {
-            let val_ty = infer_expr(&md.value, ctx)?;
+            let val_ty = infer_expr(&md.value, ctx, pending)?;
             if let Some(ann) = &md.type_ann {
                 ctx.add_constraint(val_ty.clone(), type_expr_to_infer(ann), md.span.clone());
             }
@@ -155,26 +155,29 @@ fn infer_block(
     ctx: &mut InferContext,
     pending: &mut Vec<PendingFun>,
 ) -> Result<InferType, YoloscriptError> {
+    ctx.push_scope();
     hoist_fun_decls(&block.stmts, ctx);
     for stmt in &block.stmts {
         infer_decl(stmt, ctx, pending)?;
     }
-    match &block.tail {
-        Some(tail) => infer_expr(tail, ctx),
-        None => Ok(InferType::unit()),
-    }
+    let ty = match &block.tail {
+        Some(tail) => infer_expr(tail, ctx, pending)?,
+        None       => InferType::unit(),
+    };
+    ctx.pop_scope();
+    Ok(ty)
 }
 
 fn infer_stmt(
     stmt: &Stmt,
     ctx: &mut InferContext,
-    _pending: &mut Vec<PendingFun>,
+    pending: &mut Vec<PendingFun>,
 ) -> Result<(), YoloscriptError> {
     match stmt {
-        Stmt::Expr(e) => { infer_expr(e, ctx)?; Ok(()) }
+        Stmt::Expr(e) => { infer_expr(e, ctx, pending)?; Ok(()) }
         Stmt::Return(r) => {
             let ret_ty = match &r.value {
-                Some(e) => infer_expr(e, ctx)?,
+                Some(e) => infer_expr(e, ctx, pending)?,
                 None    => InferType::unit(),
             };
             if let Some(expected) = ctx.current_return_type().cloned() {
@@ -182,11 +185,38 @@ fn infer_stmt(
             }
             Ok(())
         }
+        Stmt::If(if_stmt) => infer_if_stmt(if_stmt, ctx, pending),
+        Stmt::While(ws) => {
+            let cond_ty = infer_expr(&ws.condition, ctx, pending)?;
+            ctx.add_constraint(cond_ty, InferType::bool(), ws.span.clone());
+            infer_block(&ws.body, ctx, pending)?;
+            Ok(())
+        }
         _ => Err(YoloscriptError::internal("statement not yet supported")),
     }
 }
 
-fn infer_expr(expr: &Expr, ctx: &mut InferContext) -> Result<InferType, YoloscriptError> {
+fn infer_if_stmt(
+    if_stmt: &IfStmt,
+    ctx: &mut InferContext,
+    pending: &mut Vec<PendingFun>,
+) -> Result<(), YoloscriptError> {
+    let cond_ty = infer_expr(&if_stmt.condition, ctx, pending)?;
+    ctx.add_constraint(cond_ty, InferType::bool(), if_stmt.span.clone());
+    infer_block(&if_stmt.then_branch, ctx, pending)?;
+    match &if_stmt.else_branch {
+        Some(ElseBranch::Block(block)) => { infer_block(block, ctx, pending)?; }
+        Some(ElseBranch::If(nested))   => infer_if_stmt(nested, ctx, pending)?,
+        None => {}
+    }
+    Ok(())
+}
+
+fn infer_expr(
+    expr: &Expr,
+    ctx: &mut InferContext,
+    pending: &mut Vec<PendingFun>,
+) -> Result<InferType, YoloscriptError> {
     match expr {
         Expr::Literal(lit, _)          => Ok(infer_literal(lit, ctx)),
         Expr::Ident(name, span)        => {
@@ -196,8 +226,16 @@ fn infer_expr(expr: &Expr, ctx: &mut InferContext) -> Result<InferType, Yoloscri
                 span,
             ))
         }
-        Expr::BinOp(lhs, op, rhs, span) => infer_binop(lhs, op, rhs, span, ctx),
-        Expr::UnaryOp(op, operand, span) => infer_unaryop(op, operand, span, ctx),
+        Expr::BinOp(lhs, op, rhs, span) => infer_binop(lhs, op, rhs, span, ctx, pending),
+        Expr::UnaryOp(op, operand, span) => infer_unaryop(op, operand, span, ctx, pending),
+        Expr::If { condition, then_branch, else_branch, span } => {
+            let cond_ty = infer_expr(condition, ctx, pending)?;
+            ctx.add_constraint(cond_ty, InferType::bool(), span.clone());
+            let then_ty = infer_block(then_branch, ctx, pending)?;
+            let else_ty = infer_block(else_branch, ctx, pending)?;
+            ctx.add_constraint(then_ty.clone(), else_ty, span.clone());
+            Ok(then_ty)
+        }
         _ => Err(YoloscriptError::internal("expression not yet supported")),
     }
 }
@@ -219,9 +257,10 @@ fn infer_binop(
     rhs: &Expr,
     span: &Span,
     ctx: &mut InferContext,
+    pending: &mut Vec<PendingFun>,
 ) -> Result<InferType, YoloscriptError> {
-    let lhs_ty = infer_expr(lhs, ctx)?;
-    let rhs_ty = infer_expr(rhs, ctx)?;
+    let lhs_ty = infer_expr(lhs, ctx, pending)?;
+    let rhs_ty = infer_expr(rhs, ctx, pending)?;
     match op {
         BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Rem => {
             let result = ctx.fresh_var();
@@ -251,8 +290,9 @@ fn infer_unaryop(
     operand: &Expr,
     span: &Span,
     ctx: &mut InferContext,
+    pending: &mut Vec<PendingFun>,
 ) -> Result<InferType, YoloscriptError> {
-    let ty = infer_expr(operand, ctx)?;
+    let ty = infer_expr(operand, ctx, pending)?;
     match op {
         UnaryOp::Neg => Ok(ty),
         UnaryOp::Not => {
@@ -453,6 +493,7 @@ fn construct_fun_decl(fun: &FunDecl, ctx: &mut ConstructCtx) -> Result<TypedDecl
 }
 
 fn construct_block(block: &Block, ctx: &mut ConstructCtx) -> Result<TypedBlock, YoloscriptError> {
+    ctx.push_scope();
     let mut stmts = vec![];
     for stmt in &block.stmts {
         stmts.push(construct_decl(stmt, ctx)?);
@@ -461,6 +502,7 @@ fn construct_block(block: &Block, ctx: &mut ConstructCtx) -> Result<TypedBlock, 
         Some(e) => Some(Box::new(construct_expr(e, None, ctx)?)),
         None    => None,
     };
+    ctx.pop_scope();
     Ok(TypedBlock { stmts, tail, span: block.span.clone() })
 }
 
@@ -474,8 +516,25 @@ fn construct_stmt(stmt: &Stmt, ctx: &mut ConstructCtx) -> Result<TypedStmt, Yolo
             };
             Ok(TypedStmt::Return(TypedReturnStmt { value, span: r.span.clone() }))
         }
+        Stmt::If(if_stmt) => Ok(TypedStmt::If(construct_if_stmt(if_stmt, ctx)?)),
+        Stmt::While(ws) => {
+            let condition = construct_expr(&ws.condition, None, ctx)?;
+            let body = construct_block(&ws.body, ctx)?;
+            Ok(TypedStmt::While(TypedWhileStmt { condition, body, span: ws.span.clone() }))
+        }
         _ => Err(YoloscriptError::internal("statement not yet supported in construct")),
     }
+}
+
+fn construct_if_stmt(if_stmt: &IfStmt, ctx: &mut ConstructCtx) -> Result<TypedIfStmt, YoloscriptError> {
+    let condition = construct_expr(&if_stmt.condition, None, ctx)?;
+    let then_branch = construct_block(&if_stmt.then_branch, ctx)?;
+    let else_branch = match &if_stmt.else_branch {
+        Some(ElseBranch::Block(block)) => Some(TypedElseBranch::Block(construct_block(block, ctx)?)),
+        Some(ElseBranch::If(nested))   => Some(TypedElseBranch::If(Box::new(construct_if_stmt(nested, ctx)?))),
+        None => None,
+    };
+    Ok(TypedIfStmt { condition, then_branch, else_branch, span: if_stmt.span.clone() })
 }
 
 fn construct_expr(expr: &Expr, expected_ty: Option<&Type>, ctx: &mut ConstructCtx) -> Result<TypedExpr, YoloscriptError> {
@@ -494,6 +553,21 @@ fn construct_expr(expr: &Expr, expected_ty: Option<&Type>, ctx: &mut ConstructCt
         }
         Expr::BinOp(lhs, op, rhs, span) => construct_binop(lhs, op, rhs, span, ctx),
         Expr::UnaryOp(op, operand, span) => construct_unaryop(op, operand, span, ctx),
+        Expr::If { condition, then_branch, else_branch, span } => {
+            let condition = construct_expr(condition, None, ctx)?;
+            let then_branch = construct_block(then_branch, ctx)?;
+            let else_branch = construct_block(else_branch, ctx)?;
+            let ty = then_branch.tail.as_ref()
+                .map(|e| e.ty().clone())
+                .unwrap_or(Type::Unit);
+            Ok(TypedExpr::If {
+                condition: Box::new(condition),
+                then_branch,
+                else_branch,
+                ty,
+                span: span.clone(),
+            })
+        }
         _ => Err(YoloscriptError::internal("expression not yet supported in construct")),
     }
 }
