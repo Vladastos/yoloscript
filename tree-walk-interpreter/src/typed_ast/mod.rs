@@ -4,7 +4,7 @@
 
 use crate::ast::{
     Literal, BinOp, UnaryOp, AssignTarget, AssignOp, Pattern, Span,
-    Param, TypeExpr, FieldDef, GenericParam, TraitMethod, VariantDef,
+    Param, TypeExpr, FieldDef, GenericParam, TraitMethod, VariantDef, Block,
 };
 use crate::types::Type;
 
@@ -44,13 +44,25 @@ pub struct TypedMutDecl {
     pub span:     Span,
 }
 
+/// The body of a typed function declaration.
+///
+/// Monomorphic functions have a fully typed body; polymorphic functions
+/// (those with quantified type variables) keep the original untyped AST body
+/// because there is no single concrete instantiation to type-check against.
+/// The evaluator uses runtime values, not type annotations, so this is safe.
+#[derive(Debug, Clone)]
+pub enum FunBody {
+    Typed(TypedBlock),
+    Generic(Block),
+}
+
 #[derive(Debug, Clone)]
 pub struct TypedFunDecl {
     pub name:        String,
     pub generics:    Vec<GenericParam>,
     pub params:      Vec<Param>,
     pub return_type: Option<TypeExpr>,
-    pub body:        TypedBlock,
+    pub body:        FunBody,
     pub span:        Span,
 }
 

@@ -1,0 +1,1 @@
+let bad = [1, true, 3];  // ERROR[E0001]

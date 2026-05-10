@@ -146,6 +146,14 @@ fn infer_fun_decl(
         ctx.add_constraint(pre_reg, fun_ty.clone(), fun.span.clone());
     }
 
+    // Inline solve-and-generalize: future call sites look up this function via the
+    // poly_env and get a fresh instantiation per call, avoiding constraint conflicts
+    // when the same polymorphic function is called at different types.
+    let partial_subst = ctx.solve()?;
+    let resolved_ty = partial_subst.apply(&fun_ty);
+    let scheme = generalize(resolved_ty, &env_fvs);
+    ctx.bind_poly(&fun.name, scheme);
+
     fun_generalizations.push(FunGeneralization { name: fun.name.clone(), fun_ty, env_fvs });
     Ok(())
 }
@@ -228,6 +236,49 @@ fn infer_expr(
         }
         Expr::BinOp(lhs, op, rhs, span) => infer_binop(lhs, op, rhs, span, ctx, fun_generalizations),
         Expr::UnaryOp(op, operand, span) => infer_unaryop(op, operand, span, ctx, fun_generalizations),
+        Expr::Tuple(elems, _) => {
+            let elem_tys: Vec<InferType> = elems.iter()
+                .map(|e| infer_expr(e, ctx, fun_generalizations))
+                .collect::<Result<_, _>>()?;
+            Ok(InferType::Tuple(elem_tys))
+        }
+        Expr::Array(elems, span) => {
+            if elems.is_empty() {
+                return Ok(InferType::Array(Box::new(ctx.fresh_var())));
+            }
+            let first_ty = infer_expr(&elems[0], ctx, fun_generalizations)?;
+            for elem in &elems[1..] {
+                let ty = infer_expr(elem, ctx, fun_generalizations)?;
+                ctx.add_constraint(ty, first_ty.clone(), span.clone());
+            }
+            Ok(InferType::Array(Box::new(first_ty)))
+        }
+        Expr::Call { callee, args, span } => {
+            let callee_ty = infer_expr(callee, ctx, fun_generalizations)?;
+            let arg_tys: Vec<InferType> = args.iter()
+                .map(|a| infer_expr(a, ctx, fun_generalizations))
+                .collect::<Result<_, _>>()?;
+            if let InferType::Fun(params, _) = &callee_ty {
+                if params.len() != arg_tys.len() {
+                    return Err(YoloscriptError::type_error(
+                        ErrorCode::E0004,
+                        format!("expected {} argument(s), got {}", params.len(), arg_tys.len()),
+                        span,
+                    ));
+                }
+            }
+            let ret_var = ctx.fresh_var();
+            ctx.add_constraint(callee_ty, InferType::Fun(arg_tys, Box::new(ret_var.clone())), span.clone());
+            Ok(ret_var)
+        }
+        Expr::Index { object, index, span } => {
+            let obj_ty   = infer_expr(object, ctx, fun_generalizations)?;
+            let idx_ty   = infer_expr(index,  ctx, fun_generalizations)?;
+            ctx.add_constraint(idx_ty, InferType::int(), span.clone());
+            let elem_var = ctx.fresh_var();
+            ctx.add_constraint(obj_ty, InferType::Array(Box::new(elem_var.clone())), span.clone());
+            Ok(elem_var)
+        }
         Expr::If { condition, then_branch, else_branch, span } => {
             let cond_ty = infer_expr(condition, ctx, fun_generalizations)?;
             ctx.add_constraint(cond_ty, InferType::bool(), span.clone());
@@ -463,27 +514,29 @@ fn construct_decl(decl: &Decl, ctx: &mut ConstructCtx) -> Result<TypedDecl, Yolo
 }
 
 fn construct_fun_decl(fun: &FunDecl, ctx: &mut ConstructCtx) -> Result<TypedDecl, YoloscriptError> {
-    let fun_ty = ctx.scheme_env.get(&fun.name)
-        .ok_or_else(|| YoloscriptError::internal(format!("missing type for fn `{}`", fun.name)))
-        .map(|s| &s.ty)?;
+    let scheme = ctx.scheme_env.get(&fun.name)
+        .ok_or_else(|| YoloscriptError::internal(format!("missing type for fn `{}`", fun.name)))?
+        .clone();
 
-    let (param_types, _ret_type) = match fun_ty {
-        InferType::Fun(params, ret) => {
-            let pts: Result<Vec<_>, _> = params.iter()
+    let body = if scheme.quantified_vars.is_empty() {
+        // Monomorphic: every expression has a concrete type — construct a typed body.
+        let param_types = match ctx.subst.apply(&scheme.ty) {
+            InferType::Fun(params, _) => params.iter()
                 .map(|p| infer_type_to_type(p, &fun.span))
-                .collect();
-            (pts?, infer_type_to_type(ret, &fun.span)?)
+                .collect::<Result<Vec<_>, _>>()?,
+            _ => return Err(YoloscriptError::internal(format!("expected Fun type for `{}`", fun.name))),
+        };
+        ctx.push_scope();
+        for (param, ty) in fun.params.iter().zip(param_types.iter()) {
+            ctx.bind(&param.name, ty.clone());
         }
-        _ => return Err(YoloscriptError::internal(format!("expected Fun type for `{}`", fun.name))),
+        let typed_block = construct_block(&fun.body, ctx)?;
+        ctx.pop_scope();
+        FunBody::Typed(typed_block)
+    } else {
+        // Polymorphic: no single concrete instantiation — keep the original untyped body.
+        FunBody::Generic(fun.body.clone())
     };
-
-    ctx.push_scope();
-    for (param, ty) in fun.params.iter().zip(param_types.iter()) {
-        ctx.bind(&param.name, ty.clone());
-    }
-
-    let body = construct_block(&fun.body, ctx)?;
-    ctx.pop_scope();
 
     Ok(TypedDecl::Fun(TypedFunDecl {
         name: fun.name.clone(), generics: fun.generics.clone(),
@@ -553,6 +606,48 @@ fn construct_expr(expr: &Expr, expected_ty: Option<&Type>, ctx: &mut ConstructCt
         }
         Expr::BinOp(lhs, op, rhs, span) => construct_binop(lhs, op, rhs, span, ctx),
         Expr::UnaryOp(op, operand, span) => construct_unaryop(op, operand, span, ctx),
+        Expr::Tuple(elems, span) => {
+            let typed: Vec<TypedExpr> = elems.iter()
+                .map(|e| construct_expr(e, None, ctx))
+                .collect::<Result<_, _>>()?;
+            let ty = Type::Tuple(typed.iter().map(|e| e.ty().clone()).collect());
+            Ok(TypedExpr::Tuple(typed, ty, span.clone()))
+        }
+        Expr::Array(elems, span) => {
+            if elems.is_empty() {
+                let ty = expected_ty.cloned().ok_or_else(|| YoloscriptError::type_error(
+                    ErrorCode::E0002,
+                    "cannot infer element type of empty array; add a type annotation",
+                    span,
+                ))?;
+                return Ok(TypedExpr::Array(vec![], ty, span.clone()));
+            }
+            let typed: Vec<TypedExpr> = elems.iter()
+                .map(|e| construct_expr(e, None, ctx))
+                .collect::<Result<_, _>>()?;
+            let elem_ty = typed[0].ty().clone();
+            let ty = Type::Array(Box::new(elem_ty));
+            Ok(TypedExpr::Array(typed, ty, span.clone()))
+        }
+        Expr::Call { callee, args, span } => construct_call(callee, args, span, ctx),
+        Expr::Index { object, index, span } => {
+            let typed_obj = construct_expr(object, None, ctx)?;
+            let typed_idx = construct_expr(index,  None, ctx)?;
+            let elem_ty = match typed_obj.ty() {
+                Type::Array(elem) => *elem.clone(),
+                _ => return Err(YoloscriptError::type_error(
+                    ErrorCode::E0001,
+                    "indexed value is not an array",
+                    span,
+                )),
+            };
+            Ok(TypedExpr::Index {
+                object: Box::new(typed_obj),
+                index:  Box::new(typed_idx),
+                ty: elem_ty,
+                span: span.clone(),
+            })
+        }
         Expr::If { condition, then_branch, else_branch, span } => {
             let condition = construct_expr(condition, None, ctx)?;
             let then_branch = construct_block(then_branch, ctx)?;
@@ -572,6 +667,100 @@ fn construct_expr(expr: &Expr, expected_ty: Option<&Type>, ctx: &mut ConstructCt
     }
 }
 
+
+/// Build a typed Call expression.
+///
+/// For polymorphic callees (Idents in scheme_env whose type still contains free
+/// vars), re-instantiate the scheme against the concrete argument types using
+/// local unification. This is the Pass 2 counterpart of the inline
+/// solve-and-generalize done in `infer_fun_decl`.
+fn construct_call(
+    callee: &Expr,
+    args:   &[Expr],
+    span:   &Span,
+    ctx:    &mut ConstructCtx,
+) -> Result<TypedExpr, YoloscriptError> {
+    // Construct arguments first — needed to drive polymorphic instantiation.
+    let typed_args: Vec<TypedExpr> = args.iter()
+        .map(|a| construct_expr(a, None, ctx))
+        .collect::<Result<_, _>>()?;
+    let arg_types: Vec<&Type> = typed_args.iter().map(|a| a.ty()).collect();
+
+    // Resolve the callee's concrete function type.
+    let (typed_callee, fun_ty) = match callee {
+        Expr::Ident(name, ident_span) if ctx.lookup(name).is_none() => {
+            // Not in ConstructCtx — must be a polymorphic function in scheme_env.
+            let scheme = ctx.scheme_env.get(name.as_str()).ok_or_else(|| {
+                YoloscriptError::type_error(ErrorCode::E0003, format!("undefined name `{name}`"), ident_span)
+            })?;
+            let concrete = instantiate_scheme_for_call(scheme, &arg_types, span)?;
+            let typed = TypedExpr::Ident(name.clone(), concrete.clone(), ident_span.clone());
+            (typed, concrete)
+        }
+        _ => {
+            let typed = construct_expr(callee, None, ctx)?;
+            let ty = typed.ty().clone();
+            (typed, ty)
+        }
+    };
+
+    match &fun_ty {
+        Type::Fun(params, ret) => {
+            if params.len() != typed_args.len() {
+                return Err(YoloscriptError::type_error(
+                    ErrorCode::E0004,
+                    format!("expected {} argument(s), got {}", params.len(), typed_args.len()),
+                    span,
+                ));
+            }
+            Ok(TypedExpr::Call {
+                callee: Box::new(typed_callee),
+                args:   typed_args,
+                ty:     *ret.clone(),
+                span:   span.clone(),
+            })
+        }
+        _ => Err(YoloscriptError::type_error(
+            ErrorCode::E0001,
+            "called a non-function value",
+            span,
+        )),
+    }
+}
+
+/// Instantiate a polymorphic scheme against concrete argument types.
+///
+/// Creates fresh type variables for the quantified vars, unifies them against
+/// the concrete arg types, and returns the fully concrete `Fun` type for this
+/// call site.
+fn instantiate_scheme_for_call(
+    scheme:    &TypeScheme,
+    arg_types: &[&Type],
+    span:      &Span,
+) -> Result<Type, YoloscriptError> {
+    let mut gen = TypeVarGenerator::new();
+    let instance = instantiate(scheme, &mut gen);
+
+    let (params, ret) = match instance {
+        InferType::Fun(p, r) => (p, r),
+        _ => return Err(YoloscriptError::internal("scheme type is not a function")),
+    };
+
+    let mut subst = Substitution::new();
+    for (param, arg_ty) in params.iter().zip(arg_types.iter()) {
+        let arg_infer = InferType::Concrete((*arg_ty).clone());
+        let s = unify(&subst.apply(param), &arg_infer).map_err(|_| {
+            YoloscriptError::type_error(ErrorCode::E0001, "argument type mismatch", span)
+        })?;
+        subst = subst.compose(&s);
+    }
+
+    let concrete_params: Vec<Type> = params.iter()
+        .map(|p| infer_type_to_type(&subst.apply(p), span))
+        .collect::<Result<_, _>>()?;
+    let concrete_ret = infer_type_to_type(&subst.apply(&ret), span)?;
+    Ok(Type::Fun(concrete_params, Box::new(concrete_ret)))
+}
 
 fn construct_literal_type(lit: &Literal, expected_ty: Option<&Type>, span: &Span) -> Result<Type, YoloscriptError> {
     match lit {

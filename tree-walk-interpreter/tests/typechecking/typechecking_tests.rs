@@ -140,4 +140,68 @@ mod tests {
     fn stage2_neg_non_bool_condition() {
         check_file(&format!("{}/stage2_neg_01_non_bool_condition.yolo", test_dir()));
     }
+
+    // ── Stage 3 positive tests ────────────────────────────────────────────────
+
+    #[test]
+    fn stage3_function_calls() {
+        check_file(&format!("{}/04_functions.yolo", test_dir()));
+    }
+
+    #[test]
+    fn stage3_nested_calls() {
+        check_file(&format!("{}/05_nested_calls.yolo", test_dir()));
+    }
+
+    #[test]
+    fn stage3_let_polymorphism() {
+        check_file(&format!("{}/06_let_polymorphism.yolo", test_dir()));
+    }
+
+    #[test]
+    fn stage3_forward_reference() {
+        check_file(&format!("{}/07_forward_reference.yolo", test_dir()));
+    }
+
+    #[test]
+    fn stage3_tuples() {
+        check_file(&format!("{}/stage3_01_tuples.yolo", test_dir()));
+    }
+
+    #[test]
+    fn stage3_arrays() {
+        check_file(&format!("{}/stage3_02_arrays.yolo", test_dir()));
+    }
+
+    // ── Stage 3 negative tests ────────────────────────────────────────────────
+
+    #[test]
+    fn stage3_neg_arity_mismatch() {
+        check_file(&format!("{}/stage3_neg_01_arity_mismatch.yolo", test_dir()));
+    }
+
+    #[test]
+    fn stage3_neg_index_non_array() {
+        check_file(&format!("{}/stage3_neg_02_index_non_array.yolo", test_dir()));
+    }
+
+    #[test]
+    fn stage3_neg_non_function_callee() {
+        check_file(&format!("{}/stage3_neg_03_non_function_callee.yolo", test_dir()));
+    }
+
+    #[test]
+    fn stage3_neg_empty_array_no_annotation() {
+        check_file(&format!("{}/stage3_neg_04_empty_array_no_annotation.yolo", test_dir()));
+    }
+
+    #[test]
+    fn stage3_neg_array_element_mismatch() {
+        check_file(&format!("{}/stage3_neg_05_array_element_mismatch.yolo", test_dir()));
+    }
+
+    #[test]
+    fn stage3_neg_non_int_index() {
+        check_file(&format!("{}/stage3_neg_06_non_int_index.yolo", test_dir()));
+    }
 }

@@ -189,6 +189,81 @@ let id2 = fun(x) { x };                  // Polymorphic
 2. Generalize: `?t0` is free
 3. Result: Polymorphic scheme `∀?t0. fun(?t0) -> ?t0`
 
+### The Generalization Boundary: Why env_fvs Matters
+
+When you generalize a function's type into a scheme, you are making a promise: "this type variable is unconstrained — callers may instantiate it to any type independently on each use." That promise is only safe to make if the variable is truly local to this function. If the variable is already shared with the outer scope, the promise is a lie.
+
+**The problem: shared type variables**
+
+Consider this example:
+
+```yoloscript
+fun f(x) {
+    // x has been assigned type ?t0
+    let g = fun(y) { x };
+    // g's type: fun(?t1) -> ?t0
+    // ?t0 appears in g because g returns x
+}
+```
+
+`g`'s type contains two variables: `?t1` (the parameter) and `?t0` (the return, which is the type of `x`). They play very different roles:
+
+- `?t1` is *local to `g`*. No other binding knows about it. It is safe to quantify: each call to `g` can supply a different argument type.
+- `?t0` is *shared with the environment*. It is the same type variable that was assigned to `x` when `f` was called. Quantifying it would let different calls to `g` return different types — but `x` has exactly one type for the duration of `f`'s call.
+
+**What goes wrong if you generalize env vars**
+
+Suppose we incorrectly generalized both variables into `∀?t0 ?t1. fun(?t1) -> ?t0`. Then:
+
+```yoloscript
+let a: Int    = g(42);    // instantiate ?t0 = Int  — fine
+let b: String = g("hi");  // instantiate ?t0 = String — also "fine" to the type checker
+```
+
+But at runtime `g` always returns `x`, which has one concrete type. The type checker has accepted a program that is unsound.
+
+**The fix: exclude env free vars from generalization**
+
+Before entering a function's body, the typechecker records which type variables are currently free in the environment (`env_fvs`). These are the variables that are "already spoken for" by the outer scope.
+
+```rust
+let env_fvs = ctx.env_free_vars();  // snapshot before entering body
+// ... infer body ...
+let scheme = generalize(fun_ty, &env_fvs);
+```
+
+`generalize` then only quantifies variables that appear in the function's type *and are absent from* `env_fvs`. For `g` above:
+
+```
+fun_ty   = fun(?t1) -> ?t0
+env_fvs  = {?t0}           ← x's type is in scope
+free(fun_ty) \ env_fvs = {?t1}
+scheme   = ∀?t1. fun(?t1) -> ?t0   ← ?t0 left free, not quantified
+```
+
+`?t0` remains a free variable in the scheme. It will be resolved to a concrete type when the full substitution is applied after constraint solving. `g` is monomorphic in its return type, which is correct.
+
+**The safe case: truly unconstrained variables**
+
+```yoloscript
+let id = fun(x) { x };
+// id's type: fun(?t0) -> ?t0
+// env_fvs at top level: {} (empty)
+// free(fun(?t0) -> ?t0) \ {} = {?t0}
+// scheme: ∀?t0. fun(?t0) -> ?t0   ← fully polymorphic, safe
+```
+
+At top level the environment has no free variables, so all of `id`'s type variables can be quantified. This is the clean case that the generalization/instantiation examples above illustrate.
+
+**Summary**
+
+| Variable situation | Can be quantified? | Why |
+|---|---|---|
+| Appears in function type, absent from env | Yes | Truly local — each call can pick independently |
+| Appears in function type AND in env | No | Shared with outer scope — already pinned to one (possibly still unknown) type |
+
+The `env_fvs` snapshot is taken *before* pushing the function's parameter scope, which is the right moment: it captures exactly what is already committed in the surrounding context, before the function introduces its own locals.
+
 ### Environment and Lexical Scoping
 
 The type environment tracks variable bindings and their types. Free variable analysis is crucial for correct generalization in nested scopes:

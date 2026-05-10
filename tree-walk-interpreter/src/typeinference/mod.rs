@@ -476,8 +476,8 @@ impl InferContext {
     }
 
     /// Solve all accumulated constraints and return the resulting substitution.
-    pub fn solve(self) -> Result<Substitution, YoloscriptError> {
-        solve_constraints(self.constraints)
+    pub fn solve(&self) -> Result<Substitution, YoloscriptError> {
+        solve_constraints(self.constraints.clone())
     }
 
     /// Set the expected return type for the current function, returning the previous value.

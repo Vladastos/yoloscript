@@ -1,0 +1,5 @@
+fun add(x: Int, y: Int) -> Int {
+    x + y
+}
+
+let bad = add(1, 2, 3);  // ERROR[E0004]
