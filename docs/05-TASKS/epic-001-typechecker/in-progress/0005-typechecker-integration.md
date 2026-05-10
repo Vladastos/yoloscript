@@ -284,6 +284,25 @@ Pass 2 re-derives types structurally with no constraint emission. Pre-pass
 produces `(TypeRegistry, InitialEnv)` injected into `InferContext::new`. See
 [ADR-0002](../../../06-DECISIONS/closed/ADR-0002-inference-pass-structure.md).
 
+### `let`/`mut` generalization — deferred to Stage 4
+Currently `let` and `mut` bindings are stored as monomorphic types. Full HM
+let-polymorphism requires generalizing them after constraint solving, the same
+way `fun` declarations are generalized via `pending` → `scheme_env`.
+
+**Why deferred:** no Stage 1–3 test program is affected. The existing
+`06_let_polymorphism.yolo` uses a `fun` declaration (already generalized), not a
+`let` binding with a closure. The limitation only manifests when a `let` binding
+holds a closure (`let id = fun(x) { x }`), which requires `Expr::Closure` —
+a Stage 4 node.
+
+**Failure mode:** loud, not silent. A polymorphic let binding used at two
+different types produces E0001 (type mismatch) rather than passing silently.
+
+**Fix in Stage 4:** track `let`/`mut` bindings in `pending` alongside `fun`
+declarations; after solving, generalize and insert into `scheme_env`; in Pass 2,
+look them up from `scheme_env` with instantiation instead of `ConstructCtx`'s
+concrete env.
+
 ### Multiple error reporting
 `solve_constraints` currently stops at the first unification failure. A better
 user experience would collect all errors and report them together. This requires

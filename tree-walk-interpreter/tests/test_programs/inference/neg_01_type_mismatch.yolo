@@ -1,0 +1,6 @@
+// Test: type annotation mismatch
+//
+// The annotation says Int but the value is Bool — the typechecker must
+// produce a type mismatch error (E0001).
+
+let x: Int = true;  // ERROR[E0001]

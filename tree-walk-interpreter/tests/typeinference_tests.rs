@@ -956,3 +956,115 @@ mod phase_7_infer_context {
         assert!(!scheme.quantified_vars.contains(&TypeVar(0)));
     }
 }
+
+#[cfg(test)]
+mod programs_tests {
+    use std::path::Path;
+    use yoloscript::error::YoloscriptError;
+    use yoloscript::parser;
+    use yoloscript::typechecker;
+
+    // ── Harness helpers ───────────────────────────────────────────────────────
+
+    fn load_source(path: &str) -> String {
+        std::fs::read_to_string(path)
+            .unwrap_or_else(|e| panic!("could not read {path}: {e}"))
+    }
+
+    /// Parse `// ERROR[EXXXX]` annotations: returns (1-based line, code string) pairs.
+    fn parse_error_annotations(source: &str) -> Vec<(usize, String)> {
+        let mut out = vec![];
+        for (idx, line) in source.lines().enumerate() {
+            if let Some(pos) = line.find("// ERROR[") {
+                let rest = &line[pos + 9..];
+                if let Some(end) = rest.find(']') {
+                    out.push((idx + 1, rest[..end].to_string()));
+                }
+            }
+        }
+        out
+    }
+
+    fn byte_offset_to_line(source: &str, offset: usize) -> usize {
+        let safe = offset.min(source.len());
+        source[..safe].chars().filter(|&c| c == '\n').count() + 1
+    }
+
+    fn check_file(path: &str) {
+        let source = load_source(path);
+        let annotations = parse_error_annotations(&source);
+        let filename = Path::new(path).file_name().unwrap().to_str().unwrap();
+
+        let program = parser::parse(&source, filename)
+            .unwrap_or_else(|e| panic!("parse error in {filename}: {e}"));
+        let result = typechecker::check(program);
+
+        if annotations.is_empty() {
+            // Positive test: expect success.
+            assert!(
+                result.is_ok(),
+                "expected Ok for {filename}, got error: {}",
+                result.unwrap_err()
+            );
+        } else {
+            // Negative test: expect a TypeError on the annotated line with the annotated code.
+            let err = match result {
+                Err(e) => e,
+                Ok(_) => panic!("expected type error in {filename} but check() returned Ok"),
+            };
+            match &err {
+                YoloscriptError::TypeError { code, start, .. } => {
+                    let (expected_line, expected_code) = &annotations[0];
+                    let actual_line = byte_offset_to_line(&source, *start);
+                    assert_eq!(
+                        format!("{code}"), *expected_code,
+                        "wrong error code in {filename}"
+                    );
+                    assert_eq!(
+                        actual_line, *expected_line,
+                        "wrong error line in {filename}: expected {expected_line}, got {actual_line}"
+                    );
+                }
+                other => panic!("expected TypeError in {filename}, got: {other}"),
+            }
+        }
+    }
+
+    fn test_dir() -> String {
+        concat!(env!("CARGO_MANIFEST_DIR"), "/tests/test_programs/inference").to_string()
+    }
+
+    // ── Stage 1 positive tests ────────────────────────────────────────────────
+
+    #[test]
+    fn stage1_literals() {
+        check_file(&format!("{}/01_literals.yolo", test_dir()));
+    }
+
+    #[test]
+    fn stage1_annotations() {
+        check_file(&format!("{}/02_annotations.yolo", test_dir()));
+    }
+
+    #[test]
+    fn stage1_arithmetic() {
+        check_file(&format!("{}/03_arithmetic.yolo", test_dir()));
+    }
+
+    #[test]
+    fn stage1_mut_bindings() {
+        check_file(&format!("{}/08_mut_bindings.yolo", test_dir()));
+    }
+
+    // ── Stage 1 negative tests ────────────────────────────────────────────────
+
+    #[test]
+    fn stage1_neg_type_mismatch() {
+        check_file(&format!("{}/neg_01_type_mismatch.yolo", test_dir()));
+    }
+
+    #[test]
+    fn stage1_neg_annotation_required() {
+        check_file(&format!("{}/neg_02_annotation_required.yolo", test_dir()));
+    }
+}

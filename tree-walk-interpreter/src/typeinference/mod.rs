@@ -310,7 +310,7 @@ pub fn solve_constraints(constraints: Vec<Constraint>) -> Result<Substitution, Y
         let lhs = subst.apply(&c.lhs);
         let rhs = subst.apply(&c.rhs);
         let s = unify(&lhs, &rhs).map_err(|_| {
-            YoloscriptError::type_error(format!("cannot unify {} with {}", lhs, rhs), &c.span)
+            YoloscriptError::type_error(crate::error::ErrorCode::E0001, format!("cannot unify {} with {}", lhs, rhs), &c.span)
         })?;
         subst = subst.compose(&s);
     }
@@ -406,6 +406,7 @@ pub struct InferContext {
     mono_env: Vec<HashMap<String, InferType>>,
     poly_env: HashMap<String, TypeScheme>,
     constraints: Vec<Constraint>,
+    current_return_type: Option<InferType>,
 }
 
 impl InferContext {
@@ -415,6 +416,7 @@ impl InferContext {
             mono_env: vec![HashMap::new()],  // root scope pre-pushed
             poly_env: HashMap::new(),
             constraints: Vec::new(),
+            current_return_type: None,
         }
     }
 
@@ -476,6 +478,22 @@ impl InferContext {
     /// Solve all accumulated constraints and return the resulting substitution.
     pub fn solve(self) -> Result<Substitution, YoloscriptError> {
         solve_constraints(self.constraints)
+    }
+
+    /// Set the expected return type for the current function, returning the previous value.
+    /// Call `pop_return_type` with the returned value to restore on function exit.
+    pub fn push_return_type(&mut self, ty: InferType) -> Option<InferType> {
+        std::mem::replace(&mut self.current_return_type, Some(ty))
+    }
+
+    /// Restore the return type context after leaving a function body.
+    pub fn pop_return_type(&mut self, prev: Option<InferType>) {
+        self.current_return_type = prev;
+    }
+
+    /// The expected return type of the innermost enclosing function, if any.
+    pub fn current_return_type(&self) -> Option<&InferType> {
+        self.current_return_type.as_ref()
     }
 }
 

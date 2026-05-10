@@ -1,0 +1,6 @@
+// Test: nope without annotation
+//
+// `nope` infers to Perhaps<?t0> where ?t0 is unconstrained. The solver
+// cannot pin it to a concrete type, so the program is a type error (E0002).
+
+let x = nope;  // ERROR[E0002]
