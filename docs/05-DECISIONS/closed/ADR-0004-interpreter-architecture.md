@@ -70,5 +70,5 @@ Consistent with the eventual LLVM compiler architecture. Builds the right mental
 
 ## References
 
-- Architecture: [docs/02-ARCHITECTURE/OVERVIEW.md](../02-ARCHITECTURE/OVERVIEW.md)
-- Spec: [docs/01-SPEC/LANGUAGE-SPEC.md](../01-SPEC/LANGUAGE-SPEC.md)
+- Architecture: [docs/02-ARCHITECTURE/OVERVIEW.md](../../02-ARCHITECTURE/OVERVIEW.md)
+- Spec: [docs/01-SPEC/LANGUAGE-SPEC.md](../../01-SPEC/LANGUAGE-SPEC.md)

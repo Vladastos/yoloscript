@@ -186,7 +186,7 @@ The two choices reflect a consistent design philosophy: the pre-pass produces fu
 
 ## References
 
-- Task: [0004 — Stage 4: Advanced Expressions](../04-TASKS/epic-005-typechecker-integration/open/0004-stage4-advanced-expressions.md) (Stage 4: struct/enum type registry needed for StructLiteral, FieldAccess, Match)
-- Task: [0006 — Mutable Binding Tracking](../04-TASKS/epic-001-typechecker/open/0006-mutable-binding-tracking.md) (related InferContext changes)
-- Epic: [Epic 003 — Generics](../04-TASKS/epic-003-generics/EPIC.md) (will extend field types to TypeScheme)
-- Epic: [Epic 004 — Traits](../04-TASKS/epic-004-traits/EPIC.md) (will add impl storage to registry)
+- Task: [0004 — Stage 4: Advanced Expressions](../../04-TASKS/epic-005-typechecker-integration/open/0004-stage4-advanced-expressions.md) (Stage 4: struct/enum type registry needed for StructLiteral, FieldAccess, Match)
+- Task: [0006 — Mutable Binding Tracking](../../04-TASKS/epic-001-typechecker/open/0006-mutable-binding-tracking.md) (related InferContext changes)
+- Epic: [Epic 003 — Generics](../../04-TASKS/epic-003-generics/EPIC.md) (will extend field types to TypeScheme)
+- Epic: [Epic 004 — Traits](../../04-TASKS/epic-004-traits/EPIC.md) (will add impl storage to registry)

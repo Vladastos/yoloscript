@@ -154,5 +154,5 @@ Option C over Option A because it requires no `NodeId` fields on AST nodes — a
 
 ## References
 
-- Epic: [Epic 005 — Typechecker Integration](../04-TASKS/epic-005-typechecker-integration/EPIC.md) (implements this pass structure across Stages 1–4)
+- Epic: [Epic 005 — Typechecker Integration](../../04-TASKS/epic-005-typechecker-integration/EPIC.md) (implements this pass structure across Stages 1–4)
 - ADR: [ADR-0001 — TypeRegistry Structure and Location](ADR-0001-type-registry.md) (inject philosophy; decision here is downstream of that one)
