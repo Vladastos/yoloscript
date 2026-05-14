@@ -311,7 +311,6 @@ fn parse_stmt(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<Stmt,
     let inner = pair.into_inner().next()
         .ok_or_else(|| YoloscriptError::internal("stmt: missing inner rule"))?;
     match inner.as_rule() {
-        Rule::if_stmt      => Ok(Stmt::If(parse_if_stmt(inner, filename)?)),
         Rule::while_stmt   => Ok(Stmt::While(parse_while_stmt(inner, filename)?)),
         Rule::for_stmt     => Ok(Stmt::For(parse_for_stmt(inner, filename)?)),
         Rule::for_in_stmt  => Ok(Stmt::ForIn(parse_for_in_stmt(inner, filename)?)),
@@ -327,29 +326,6 @@ fn parse_stmt(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<Stmt,
         }
         r => Err(YoloscriptError::internal(format!("stmt: unexpected rule {r:?}"))),
     }
-}
-
-
-fn parse_if_stmt(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<IfStmt, YoloscriptError> {
-    let span = Span::of(&pair, filename);
-    let mut inner = pair.into_inner();
-    let condition   = parse_expr(
-        inner.next().ok_or_else(|| YoloscriptError::internal("if_stmt: expected condition"))?,
-        filename,
-    )?;
-    let then_branch = parse_block(
-        inner.next().ok_or_else(|| YoloscriptError::internal("if_stmt: expected then block"))?,
-        filename,
-    )?;
-    let else_branch = match inner.next() {
-        Some(p) => Some(match p.as_rule() {
-            Rule::if_stmt => ElseBranch::If(Box::new(parse_if_stmt(p, filename)?)),
-            Rule::block   => ElseBranch::Block(parse_block(p, filename)?),
-            r => return Err(YoloscriptError::internal(format!("if_stmt: unexpected else branch rule {r:?}"))),
-        }),
-        None => None,
-    };
-    Ok(IfStmt { condition, then_branch, else_branch, span })
 }
 
 
@@ -536,10 +512,20 @@ fn parse_if_expr(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<Ex
         inner.next().ok_or_else(|| YoloscriptError::internal("if_expr: expected then block"))?,
         filename,
     )?;
-    let else_branch = parse_block(
-        inner.next().ok_or_else(|| YoloscriptError::internal("if_expr: expected else block"))?,
-        filename,
-    )?;
+    let else_branch = match inner.next() {
+        None => None,
+        Some(p) => Some(match p.as_rule() {
+            Rule::block   => parse_block(p, filename)?,
+            // `else if` — wrap the nested if_expr in a synthetic block so that
+            // Expr::If.else_branch is always Option<Block>.
+            Rule::if_expr => {
+                let nested = parse_if_expr(p, filename)?;
+                let else_span = nested.span().clone();
+                Block { stmts: vec![], tail: Some(Box::new(nested)), span: else_span }
+            }
+            r => return Err(YoloscriptError::internal(format!("if_expr: unexpected else rule {r:?}"))),
+        }),
+    };
     Ok(Expr::If { condition: Box::new(condition), then_branch, else_branch, span })
 }
 
@@ -998,6 +984,19 @@ fn parse_block(pair: pest::iterators::Pair<Rule>, filename: &str) -> Result<Bloc
     let mut tail  = None;
     for p in pair.into_inner() {
         match p.as_rule() {
+            Rule::block_item => {
+                let inner = p.into_inner().next()
+                    .ok_or_else(|| YoloscriptError::internal("block_item: missing inner rule"))?;
+                match inner.as_rule() {
+                    Rule::if_stmt_item => {
+                        let if_pair = inner.into_inner().next()
+                            .ok_or_else(|| YoloscriptError::internal("if_stmt_item: missing if_expr"))?;
+                        stmts.push(Decl::Stmt(Stmt::Expr(parse_if_expr(if_pair, filename)?)));
+                    }
+                    Rule::decl => stmts.push(parse_decl(inner, filename)?),
+                    r => return Err(YoloscriptError::internal(format!("block_item: unexpected rule {r:?}"))),
+                }
+            }
             Rule::decl => stmts.push(parse_decl(p, filename)?),
             Rule::expr => tail = Some(Box::new(parse_expr(p, filename)?)),
             _ => {}

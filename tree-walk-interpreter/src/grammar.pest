@@ -60,8 +60,7 @@ generic_param  = { ident ~ (":" ~ type_expr)? }
 // ── Statements ────────────────────────────────────────────────────────────────
 
 stmt = {
-    if_stmt
-  | while_stmt
+    while_stmt
   | for_stmt
   | for_in_stmt
   | loop_stmt
@@ -72,10 +71,15 @@ stmt = {
   | expr_stmt
 }
 
-block      = { "{" ~ decl* ~ expr? ~ "}" }  // optional trailing expression (no semicolon) for expression-position blocks
+block      = { "{" ~ block_item* ~ expr? ~ "}" }
+// block_item wraps each statement-level item. if_stmt_item handles `if` in
+// statement position without a trailing `;`: it matches only when the `if`
+// expression is NOT immediately followed by the closing `}` of the block,
+// leaving that case for the tail `expr?`.
+block_item   = { if_stmt_item | decl }
+if_stmt_item = { if_expr ~ !"}" }
 expr_stmt  = { expr ~ ";" }
 
-if_stmt    = { "if" ~ "(" ~ expr ~ ")" ~ block ~ ("else" ~ (if_stmt | block))? }
 while_stmt = { "while" ~ "(" ~ expr ~ ")" ~ block }
 
 for_stmt   = { "for" ~ "(" ~ for_init ~ expr? ~ ";" ~ expr? ~ ")" ~ block }
@@ -147,7 +151,7 @@ array_lit      = { "[" ~ (expr ~ ("," ~ expr)* ~ ","?)? ~ "]" }
 match_expr  = { "match" ~ expr ~ "{" ~ match_arm ~ ("," ~ match_arm)* ~ ","? ~ "}" }
 match_arm   = { pattern ~ ("if" ~ expr)? ~ "=>" ~ expr }
 
-if_expr     = { "if" ~ "(" ~ expr ~ ")" ~ block ~ "else" ~ block }
+if_expr     = { "if" ~ "(" ~ expr ~ ")" ~ block ~ ("else" ~ (if_expr | block))? }
 loop_expr   = { "loop" ~ block }
 
 closure_expr = { "fun" ~ "(" ~ param_list? ~ ")" ~ ("->" ~ type_expr)? ~ block }

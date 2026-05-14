@@ -176,7 +176,6 @@ pub struct Block {
 
 #[derive(Debug, Clone)]
 pub enum Stmt {
-    If(IfStmt),
     While(WhileStmt),
     For(ForStmt),
     ForIn(ForInStmt),
@@ -186,20 +185,6 @@ pub enum Stmt {
     Break(BreakStmt),
     Continue(Span),
     Expr(Expr),
-}
-
-#[derive(Debug, Clone)]
-pub struct IfStmt {
-    pub condition:   Expr,
-    pub then_branch: Block,
-    pub else_branch: Option<ElseBranch>,
-    pub span:        Span,
-}
-
-#[derive(Debug, Clone)]
-pub enum ElseBranch {
-    Block(Block),
-    If(Box<IfStmt>),
 }
 
 #[derive(Debug, Clone)]
@@ -273,7 +258,7 @@ pub enum Expr {
     Index { object: Box<Expr>, index: Box<Expr>, span: Span },
     Cast { expr: Box<Expr>, target_type: TypeExpr, span: Span },
     Match(MatchExpr),
-    If { condition: Box<Expr>, then_branch: Block, else_branch: Block, span: Span },
+    If { condition: Box<Expr>, then_branch: Block, else_branch: Option<Block>, span: Span },
     Loop { body: Block, span: Span },
     Closure { params: Vec<Param>, return_type: Option<TypeExpr>, body: Block, span: Span },
     StructLiteral { path: Vec<String>, fields: Vec<(String, Expr)>, span: Span },

@@ -1,0 +1,12 @@
+// Stage 3: if used directly as a block tail expression
+//
+// With if_stmt removed from the grammar, if_expr can now appear as the
+// trailing expression in a block. Both branches must unify.
+
+fun max(a: Int, b: Int) -> Int {
+    if (a > b) { a } else { b }
+}
+
+fun abs_val(x: Int) -> Int {
+    if (x < 0) { 0 - x } else { x }
+}

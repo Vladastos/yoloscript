@@ -204,4 +204,18 @@ mod tests {
     fn stage3_neg_non_int_index() {
         check_file(&format!("{}/stage3_neg_06_non_int_index.yolo", test_dir()));
     }
+
+    // ── Stage 4 positive tests ────────────────────────────────────────────────
+
+    #[test]
+    fn stage4_if_as_block_tail() {
+        check_file(&format!("{}/stage3_03_if_as_block_tail.yolo", test_dir()));
+    }
+
+    // ── Stage 4 negative tests ────────────────────────────────────────────────
+
+    #[test]
+    fn stage4_neg_if_no_else_non_unit() {
+        check_file(&format!("{}/stage3_neg_07_if_no_else_non_unit.yolo", test_dir()));
+    }
 }

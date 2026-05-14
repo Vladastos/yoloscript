@@ -102,7 +102,6 @@ pub struct TypedTraitDecl {
 /// Mirrors `ast::Stmt` but with typed expressions.
 #[derive(Debug, Clone)]
 pub enum TypedStmt {
-    If(TypedIfStmt),
     While(TypedWhileStmt),
     For(TypedForStmt),
     ForIn(TypedForInStmt),
@@ -112,20 +111,6 @@ pub enum TypedStmt {
     Break(TypedBreakStmt),
     Continue(Span),
     Expr(TypedExpr),
-}
-
-#[derive(Debug, Clone)]
-pub struct TypedIfStmt {
-    pub condition:   TypedExpr,
-    pub then_branch: TypedBlock,
-    pub else_branch: Option<TypedElseBranch>,
-    pub span:        Span,
-}
-
-#[derive(Debug, Clone)]
-pub enum TypedElseBranch {
-    Block(TypedBlock),
-    If(Box<TypedIfStmt>),
 }
 
 #[derive(Debug, Clone)]
@@ -247,7 +232,7 @@ pub enum TypedExpr {
     If {
         condition: Box<TypedExpr>,
         then_branch: TypedBlock,
-        else_branch: TypedBlock,
+        else_branch: Option<TypedBlock>,
         ty: Type,
         span: Span,
     },

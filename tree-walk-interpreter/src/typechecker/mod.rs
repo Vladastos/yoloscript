@@ -193,7 +193,6 @@ fn infer_stmt(
             }
             Ok(())
         }
-        Stmt::If(if_stmt) => infer_if_stmt(if_stmt, ctx, fun_generalizations),
         Stmt::While(ws) => {
             let cond_ty = infer_expr(&ws.condition, ctx, fun_generalizations)?;
             ctx.add_constraint(cond_ty, InferType::bool(), ws.span.clone());
@@ -202,22 +201,6 @@ fn infer_stmt(
         }
         _ => Err(YoloscriptError::internal("statement not yet supported")),
     }
-}
-
-fn infer_if_stmt(
-    if_stmt: &IfStmt,
-    ctx: &mut InferContext,
-    fun_generalizations: &mut Vec<FunGeneralization>,
-) -> Result<(), YoloscriptError> {
-    let cond_ty = infer_expr(&if_stmt.condition, ctx, fun_generalizations)?;
-    ctx.add_constraint(cond_ty, InferType::bool(), if_stmt.span.clone());
-    infer_block(&if_stmt.then_branch, ctx, fun_generalizations)?;
-    match &if_stmt.else_branch {
-        Some(ElseBranch::Block(block)) => { infer_block(block, ctx, fun_generalizations)?; }
-        Some(ElseBranch::If(nested))   => infer_if_stmt(nested, ctx, fun_generalizations)?,
-        None => {}
-    }
-    Ok(())
 }
 
 fn infer_expr(
@@ -283,9 +266,18 @@ fn infer_expr(
             let cond_ty = infer_expr(condition, ctx, fun_generalizations)?;
             ctx.add_constraint(cond_ty, InferType::bool(), span.clone());
             let then_ty = infer_block(then_branch, ctx, fun_generalizations)?;
-            let else_ty = infer_block(else_branch, ctx, fun_generalizations)?;
-            ctx.add_constraint(then_ty.clone(), else_ty, span.clone());
-            Ok(then_ty)
+            match else_branch {
+                Some(else_block) => {
+                    let else_ty = infer_block(else_block, ctx, fun_generalizations)?;
+                    ctx.add_constraint(then_ty.clone(), else_ty, span.clone());
+                    Ok(then_ty)
+                }
+                None => {
+                    // No else: the then-branch must produce Unit (value is discarded).
+                    ctx.add_constraint(then_ty, InferType::unit(), span.clone());
+                    Ok(InferType::unit())
+                }
+            }
         }
         _ => Err(YoloscriptError::internal("expression not yet supported")),
     }
@@ -569,7 +561,6 @@ fn construct_stmt(stmt: &Stmt, ctx: &mut ConstructCtx) -> Result<TypedStmt, Yolo
             };
             Ok(TypedStmt::Return(TypedReturnStmt { value, span: r.span.clone() }))
         }
-        Stmt::If(if_stmt) => Ok(TypedStmt::If(construct_if_stmt(if_stmt, ctx)?)),
         Stmt::While(ws) => {
             let condition = construct_expr(&ws.condition, None, ctx)?;
             let body = construct_block(&ws.body, ctx)?;
@@ -577,17 +568,6 @@ fn construct_stmt(stmt: &Stmt, ctx: &mut ConstructCtx) -> Result<TypedStmt, Yolo
         }
         _ => Err(YoloscriptError::internal("statement not yet supported in construct")),
     }
-}
-
-fn construct_if_stmt(if_stmt: &IfStmt, ctx: &mut ConstructCtx) -> Result<TypedIfStmt, YoloscriptError> {
-    let condition = construct_expr(&if_stmt.condition, None, ctx)?;
-    let then_branch = construct_block(&if_stmt.then_branch, ctx)?;
-    let else_branch = match &if_stmt.else_branch {
-        Some(ElseBranch::Block(block)) => Some(TypedElseBranch::Block(construct_block(block, ctx)?)),
-        Some(ElseBranch::If(nested))   => Some(TypedElseBranch::If(Box::new(construct_if_stmt(nested, ctx)?))),
-        None => None,
-    };
-    Ok(TypedIfStmt { condition, then_branch, else_branch, span: if_stmt.span.clone() })
 }
 
 fn construct_expr(expr: &Expr, expected_ty: Option<&Type>, ctx: &mut ConstructCtx) -> Result<TypedExpr, YoloscriptError> {
@@ -651,10 +631,16 @@ fn construct_expr(expr: &Expr, expected_ty: Option<&Type>, ctx: &mut ConstructCt
         Expr::If { condition, then_branch, else_branch, span } => {
             let condition = construct_expr(condition, None, ctx)?;
             let then_branch = construct_block(then_branch, ctx)?;
-            let else_branch = construct_block(else_branch, ctx)?;
-            let ty = then_branch.tail.as_ref()
-                .map(|e| e.ty().clone())
-                .unwrap_or(Type::Unit);
+            let (else_branch, ty) = match else_branch {
+                Some(eb) => {
+                    let typed_else = construct_block(eb, ctx)?;
+                    let ty = then_branch.tail.as_ref()
+                        .map(|e| e.ty().clone())
+                        .unwrap_or(Type::Unit);
+                    (Some(typed_else), ty)
+                }
+                None => (None, Type::Unit),
+            };
             Ok(TypedExpr::If {
                 condition: Box::new(condition),
                 then_branch,

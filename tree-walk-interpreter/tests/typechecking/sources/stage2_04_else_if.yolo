@@ -1,6 +1,7 @@
 // Stage 2: else-if chains (statement form)
 //
-// ElseBranch::If is handled recursively; each condition must be Bool.
+// The else branch of an if_expr can be another if_expr (chaining).
+// Each condition must be Bool; the overall type is Unit when used as a statement.
 
 fun check_range(x: Int) {
     if (x < 0) {
