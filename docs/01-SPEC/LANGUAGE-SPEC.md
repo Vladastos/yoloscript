@@ -197,6 +197,10 @@ Because `as` desugars to `From`, user-defined types become castable by implement
 
 ### 3.6 Generics
 
+> **v0.2 feature.** User-defined generic functions and types are not available in v0.1.
+> Built-in generic types (`Perhaps<T>`, `Result<T, E>`, `T[]`) are supported in v0.1 as
+> special cases in the type system.
+
 Types and functions can be parameterized with `<T>` syntax.
 
 ```yolo
@@ -353,7 +357,11 @@ fun parse_and_double(s: String) -> Result<Int, String> {
 }
 ```
 
-`?` desugars to: if the expression is `Err(e)`, return `Err(e)` immediately; otherwise unwrap to the `Ok` value. Error types must match exactly — no implicit coercion.
+`?` desugars to: if the expression is `Err(e)`, return `Err(E2::from(e))` immediately (where `E2` is the enclosing function's error type); otherwise unwrap to the `Ok` value.
+
+The inner expression's error type `E1` and the function's return error type `E2` must satisfy `E2: From<E1>`. When `E1 == E2` no conversion is performed. When they differ, `From::from` is called automatically on the error value before re-wrapping in `Err`.
+
+> **v0.1:** Error types must match exactly (`E1 == E2`). `From`-based coercion between different error types is a v0.2 feature (requires the trait system).
 
 ---
 
@@ -502,6 +510,11 @@ Use `match` to handle both cases, or `?` to propagate errors.
 ---
 
 ## 10. Traits
+
+> **v0.2 feature.** The trait system is not available in v0.1. Built-in trait-dependent
+> behaviour (`as` for `Int ↔ Float`, `?` with exact error match, `for-in` over arrays
+> and ranges) is available in v0.1 as hardcoded special cases. User-defined traits,
+> `impl Trait for Type`, and trait bounds are v0.2.
 
 ```yolo
 trait Printable {
@@ -659,13 +672,25 @@ for (mut i = 0; i < 10; i += 1) {
 
 ### 12.4 For-in
 
-Iterates over any array or range:
+`for-in` works on any type implementing the `Iterable<T>` trait. The loop variable
+receives type `T`. `T[]` (array) and `Range` (produced by `..` and `..=`) implement
+`Iterable<T>` by default. User-defined types can be made iterable by implementing
+`Iterable<T>`:
+
+```yolo
+trait Iterable<T> {
+    fun next(mut self) -> Perhaps<T>;
+}
+```
 
 ```yolo
 for (let item in collection) { ... }
 for (let i in 0..10) { ... }    // 0, 1, ..., 9
 for (let i in 0..=10) { ... }   // 0, 1, ..., 10
 ```
+
+> **v0.1:** Only `T[]` and `Range` are supported as iterables. User-defined
+> `Iterable<T>` implementations are a v0.2 feature (requires the trait system).
 
 ### 12.5 Loop
 

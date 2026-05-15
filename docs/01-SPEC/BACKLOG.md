@@ -39,7 +39,7 @@ Open design questions and deferred features. When an item is resolved, it is rem
 | String interpolation | `deferred` | Syntax not decided. Options: `` `hello ${name}` ``, `"hello {name}"`, or other. Must decide whether any value is interpolatable or only `Display`-implementing types. |
 | Operator overloading traits | `deferred` | Via traits (`Add`, `Sub`, `Mul`, etc.), Rust-style. Deferred because it can be added without breaking existing code. Needs: trait definitions, method signatures, operator-to-trait mapping. |
 | Derived / auto-impl traits | `deferred` | Syntax not designed. `#[derive(...)]` is too Rust-like. Needed for `Eq`, `Ord`, `Display`, etc. |
-| `?` error type coercion | `deferred` | `From`-based coercion so `?` can convert between compatible error types. `E1 == E2` required in v0.1. |
+| `?` error type coercion | ~~`deferred`~~ **SPEC** | Specified in §5.4: `E2: From<E1>` semantics with v0.1 note. Implementation deferred to Epic 004 task 0003. |
 | Integer overflow behaviour | `open` | Currently wrapping. Should be: panic in debug, wrapping in release? Configurable? |
 | Panic recovery | `deferred` | No way to catch panics in v0.1. If catch semantics are added, needs careful design. |
 
