@@ -1,0 +1,10 @@
+// Stage 6: type casts (v0.1 provisional: identity casts only).
+
+let i: Int   = 42;
+let i2: Int  = i as Int;
+
+let g: Float = 3.14;
+let f2: Float = g as Float;
+
+// Cast in arithmetic context (identity cast preserves type)
+let area: Float = g as Float * 5.0 * 5.0;

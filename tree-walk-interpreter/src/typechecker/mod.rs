@@ -611,6 +611,16 @@ fn infer_expr(
             }
             Ok(InferType::Named(struct_name, vec![]))
         }
+        Expr::Cast { expr, target_type, span } => {
+            let source_ty = infer_expr(expr, ctx, fun_generalizations)?;
+            let target_ty = type_expr_to_infer(target_type);
+            // v0.1 provisional: both sides must be in the same numeric family (Int or Float).
+            // Epic 004 task 0002 replaces this with a From<S> trait lookup.
+            let num_var = ctx.fresh_var();
+            ctx.add_constraint(source_ty, num_var.clone(), span.clone());
+            ctx.add_constraint(target_ty.clone(), num_var, span.clone());
+            Ok(target_ty)
+        }
         Expr::TupleAccess { object, index, span } => {
             let obj_ty = infer_expr(object, ctx, fun_generalizations)?;
             let obj_ty = ctx.solve()?.apply(&obj_ty);
@@ -1199,6 +1209,11 @@ fn construct_expr(expr: &Expr, expected_ty: Option<&Type>, ctx: &mut ConstructCt
                 ty:     Type::Named(struct_name, vec![]),
                 span:   span.clone(),
             })
+        }
+        Expr::Cast { expr, target_type, span } => {
+            let typed_expr = construct_expr(expr, None, ctx)?;
+            let ty = resolved_to_type(&type_expr_to_infer(target_type), ctx.subst, span)?;
+            Ok(TypedExpr::Cast { expr: Box::new(typed_expr), target_type: target_type.clone(), ty, span: span.clone() })
         }
         Expr::TupleAccess { object, index, span } => {
             let typed_obj = construct_expr(object, None, ctx)?;
