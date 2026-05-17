@@ -1,0 +1,6 @@
+// match arms with incompatible types should fail.
+let x: Int = 42;
+let result = match x {
+    0 => "zero",
+    _ => 42, // ERROR[E0001]
+};

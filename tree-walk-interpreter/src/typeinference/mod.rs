@@ -391,6 +391,20 @@ pub fn instantiate(scheme: &TypeScheme, gen: &mut TypeVarGenerator) -> InferType
     subst.apply(&scheme.ty)
 }
 
+// ── Enum environment ─────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone)]
+pub struct VariantInfo {
+    pub name:   String,
+    pub fields: Vec<(String, InferType)>,
+}
+
+#[derive(Debug, Clone)]
+pub struct EnumInfo {
+    pub type_params: Vec<TypeVar>,
+    pub variants:    Vec<VariantInfo>,
+}
+
 // ── Phase 7: Inference Context ────────────────────────────────────────────────
 
 /// State threaded through the entire AST walk during type inference.
@@ -410,6 +424,7 @@ pub struct InferContext {
     current_break_type:  Option<InferType>,
     pub struct_env: HashMap<String, Vec<(String, InferType)>>,
     pub method_env: HashMap<String, HashMap<String, InferType>>,
+    pub enum_env:   HashMap<String, EnumInfo>,
 }
 
 impl InferContext {
@@ -423,6 +438,7 @@ impl InferContext {
             current_break_type:  None,
             struct_env: HashMap::new(),
             method_env: HashMap::new(),
+            enum_env:   HashMap::new(),
         }
     }
 
@@ -440,6 +456,18 @@ impl InferContext {
 
     pub fn get_method_type(&self, type_name: &str, method_name: &str) -> Option<&InferType> {
         self.method_env.get(type_name)?.get(method_name)
+    }
+
+    pub fn register_enum(&mut self, name: String, info: EnumInfo) {
+        self.enum_env.insert(name, info);
+    }
+
+    pub fn get_enum(&self, name: &str) -> Option<&EnumInfo> {
+        self.enum_env.get(name)
+    }
+
+    pub fn fresh_type_var_raw(&mut self) -> TypeVar {
+        self.var_gen.fresh()
     }
 
     /// Enter a new lexical scope (e.g. a function body or block).

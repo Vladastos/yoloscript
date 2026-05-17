@@ -300,6 +300,11 @@ mod tests {
         check_file(&format!("{}/stage6_06_cast.yolo", test_dir()));
     }
 
+    #[test]
+    fn stage6_enums() {
+        check_file(&format!("{}/stage6_08_enums.yolo", test_dir()));
+    }
+
     // ── Stage 6 negative tests ────────────────────────────────────────────────
 
     #[test]
@@ -320,5 +325,10 @@ mod tests {
     #[test]
     fn stage6_neg_cast_string() {
         check_file(&format!("{}/stage6_neg_04_cast_string.yolo", test_dir()));
+    }
+
+    #[test]
+    fn stage6_neg_match_arm_mismatch() {
+        check_file(&format!("{}/stage6_neg_06_match_arm_mismatch.yolo", test_dir()));
     }
 }

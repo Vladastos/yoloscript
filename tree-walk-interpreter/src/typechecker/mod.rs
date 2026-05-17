@@ -13,7 +13,8 @@ type SchemeEnv = HashMap<String, TypeScheme>;
 pub fn check(program: Program) -> Result<TypedProgram, YoloscriptError> {
     let mut ctx = InferContext::new();
 
-    // Pre-pass: hoist names so forward references and mutual recursion work.
+    // Pre-pass: register built-in enums then hoist names so forward references work.
+    register_builtin_enums(&mut ctx);
     hoist_fun_decls(&program.decls, &mut ctx);
     hoist_struct_and_impl_decls(&program.decls, &mut ctx);
 
@@ -22,7 +23,7 @@ pub fn check(program: Program) -> Result<TypedProgram, YoloscriptError> {
     infer_program(&program, &mut ctx, &mut fun_generalizations)?;
     let subst = ctx.solve()?;
 
-    // Build SchemeEnv by applying the substitution and generalising.
+    // Build SchemeEnv from user functions.
     let mut scheme_env: SchemeEnv = HashMap::new();
     for fg in fun_generalizations {
         let resolved = subst.apply(&fg.fun_ty);
@@ -30,12 +31,33 @@ pub fn check(program: Program) -> Result<TypedProgram, YoloscriptError> {
         scheme_env.insert(fg.name, scheme);
     }
 
-    // Build concrete struct/method environments for Pass 2.
+    // Build concrete environments for Pass 2.
     let concrete_struct_env = build_concrete_struct_env(&ctx.struct_env, &subst)?;
     let concrete_method_env = build_concrete_method_env(&ctx.method_env, &subst)?;
 
     // Pass 2: re-derive concrete types and build TypedAST.
-    construct_program(&program, &subst, &scheme_env, concrete_struct_env, concrete_method_env)
+    construct_program(&program, &subst, &scheme_env, concrete_struct_env, concrete_method_env, &ctx.enum_env)
+}
+
+fn register_builtin_enums(ctx: &mut InferContext) {
+    let t = ctx.fresh_type_var_raw();
+    ctx.register_enum("Perhaps".into(), EnumInfo {
+        type_params: vec![t],
+        variants: vec![
+            VariantInfo { name: "Some".into(), fields: vec![("value".into(), InferType::Var(t))] },
+            VariantInfo { name: "Nope".into(), fields: vec![] },
+        ],
+    });
+
+    let t = ctx.fresh_type_var_raw();
+    let e = ctx.fresh_type_var_raw();
+    ctx.register_enum("Result".into(), EnumInfo {
+        type_params: vec![t, e],
+        variants: vec![
+            VariantInfo { name: "Ok".into(),  fields: vec![("value".into(), InferType::Var(t))] },
+            VariantInfo { name: "Err".into(), fields: vec![("error".into(), InferType::Var(e))] },
+        ],
+    });
 }
 
 // ── Function generalisation record ────────────────────────────────────────────
@@ -61,8 +83,6 @@ fn hoist_fun_decls(decls: &[Decl], ctx: &mut InferContext) {
     }
 }
 
-/// Register struct field shapes and impl method types so that forward
-/// references to fields and methods work across declaration order.
 fn hoist_struct_and_impl_decls(decls: &[Decl], ctx: &mut InferContext) {
     for decl in decls {
         match decl {
@@ -71,6 +91,19 @@ fn hoist_struct_and_impl_decls(decls: &[Decl], ctx: &mut InferContext) {
                     .map(|f| (f.name.clone(), type_expr_to_infer(&f.type_ann)))
                     .collect();
                 ctx.register_struct_fields(sd.name.clone(), fields);
+            }
+            Decl::Enum(ed) => {
+                // v0.1: user-defined enums have no generic type params.
+                let variants = ed.variants.iter().map(|v| VariantInfo {
+                    name: v.name.clone(),
+                    fields: v.fields.iter()
+                        .map(|f| (f.name.clone(), type_expr_to_infer(&f.type_ann)))
+                        .collect(),
+                }).collect();
+                ctx.register_enum(ed.name.clone(), EnumInfo {
+                    type_params: vec![],
+                    variants,
+                });
             }
             Decl::Impl(ib) if ib.trait_name.is_none() => {
                 let target_name = match &ib.target_type {
@@ -586,30 +619,76 @@ fn infer_expr(
             Ok(ret_var)
         }
         Expr::StructLiteral { path, fields, span } => {
-            let struct_name = path.last()
-                .ok_or_else(|| YoloscriptError::internal("empty path in struct literal"))?
-                .clone();
-            let expected_fields = ctx.get_struct_fields(&struct_name)
-                .ok_or_else(|| YoloscriptError::type_error(
-                    ErrorCode::E0003,
-                    format!("unknown struct `{struct_name}`"),
-                    span,
-                ))?
-                .clone();
-            // Every provided field must exist on the struct.
-            for (name, expr) in fields {
-                let decl_ty = expected_fields.iter()
-                    .find(|(n, _)| n == name)
-                    .map(|(_, ty)| ty.clone())
+            if path.len() == 2 {
+                // Two-segment path: enum variant construction (e.g. Shape::Circle { .. }).
+                let enum_name    = &path[0];
+                let variant_name = &path[1];
+                let enum_info = ctx.get_enum(enum_name)
                     .ok_or_else(|| YoloscriptError::type_error(
                         ErrorCode::E0003,
-                        format!("no field `{name}` on `{struct_name}`"),
+                        format!("unknown enum `{enum_name}`"),
                         span,
-                    ))?;
-                let expr_ty = infer_expr(expr, ctx, fun_generalizations)?;
-                ctx.add_constraint(expr_ty, decl_ty, span.clone());
+                    ))?
+                    .clone();
+                let variant = enum_info.variants.iter()
+                    .find(|v| v.name == *variant_name)
+                    .ok_or_else(|| YoloscriptError::type_error(
+                        ErrorCode::E0003,
+                        format!("no variant `{variant_name}` on enum `{enum_name}`"),
+                        span,
+                    ))?
+                    .clone();
+                let mut remap: HashMap<TypeVar, InferType> = HashMap::new();
+                for &tp in &enum_info.type_params {
+                    remap.insert(tp, ctx.fresh_var());
+                }
+                let instantiate_ty = |ty: &InferType, remap: &HashMap<TypeVar, InferType>| -> InferType {
+                    match ty {
+                        InferType::Var(v) => remap.get(v).cloned().unwrap_or_else(|| ty.clone()),
+                        other => other.clone(),
+                    }
+                };
+                for (fname, expr) in fields {
+                    let decl_ty = variant.fields.iter()
+                        .find(|(n, _)| n == fname)
+                        .map(|(_, ty)| instantiate_ty(ty, &remap))
+                        .ok_or_else(|| YoloscriptError::type_error(
+                            ErrorCode::E0003,
+                            format!("no field `{fname}` on `{enum_name}::{variant_name}`"),
+                            span,
+                        ))?;
+                    let expr_ty = infer_expr(expr, ctx, fun_generalizations)?;
+                    ctx.add_constraint(expr_ty, decl_ty, span.clone());
+                }
+                let type_args: Vec<InferType> = enum_info.type_params.iter()
+                    .map(|tp| remap[tp].clone())
+                    .collect();
+                Ok(InferType::Named(enum_name.clone(), type_args))
+            } else {
+                let struct_name = path.last()
+                    .ok_or_else(|| YoloscriptError::internal("empty path in struct literal"))?
+                    .clone();
+                let expected_fields = ctx.get_struct_fields(&struct_name)
+                    .ok_or_else(|| YoloscriptError::type_error(
+                        ErrorCode::E0003,
+                        format!("unknown struct `{struct_name}`"),
+                        span,
+                    ))?
+                    .clone();
+                for (name, expr) in fields {
+                    let decl_ty = expected_fields.iter()
+                        .find(|(n, _)| n == name)
+                        .map(|(_, ty)| ty.clone())
+                        .ok_or_else(|| YoloscriptError::type_error(
+                            ErrorCode::E0003,
+                            format!("no field `{name}` on `{struct_name}`"),
+                            span,
+                        ))?;
+                    let expr_ty = infer_expr(expr, ctx, fun_generalizations)?;
+                    ctx.add_constraint(expr_ty, decl_ty, span.clone());
+                }
+                Ok(InferType::Named(struct_name, vec![]))
             }
-            Ok(InferType::Named(struct_name, vec![]))
         }
         Expr::Cast { expr, target_type, span } => {
             let source_ty = infer_expr(expr, ctx, fun_generalizations)?;
@@ -647,7 +726,155 @@ fn infer_expr(
             let _ = span;
             Ok(break_var)
         }
+        Expr::Path(segments, span) => {
+            let [type_name, member_name] = segments.as_slice() else {
+                return Err(YoloscriptError::type_error(
+                    ErrorCode::E0003,
+                    format!("unresolved path `{}`", segments.join("::")),
+                    span,
+                ));
+            };
+            if let Some(fun_ty) = ctx.get_method_type(type_name, member_name).cloned() {
+                return Ok(fun_ty);
+            }
+            if let Some(info) = ctx.get_enum(type_name).cloned() {
+                if let Some(variant) = info.variants.iter().find(|v| v.name == *member_name) {
+                    if variant.fields.is_empty() {
+                        let type_args: Vec<InferType> = info.type_params.iter()
+                            .map(|_| ctx.fresh_var())
+                            .collect();
+                        return Ok(InferType::Named(type_name.clone(), type_args));
+                    }
+                }
+            }
+            Err(YoloscriptError::type_error(
+                ErrorCode::E0003,
+                format!("no member `{member_name}` on type `{type_name}`"),
+                span,
+            ))
+        }
+        Expr::Match(m) => infer_match(m, ctx, fun_generalizations),
         _ => Err(YoloscriptError::internal("expression not yet supported")),
+    }
+}
+
+fn infer_match(
+    m: &MatchExpr,
+    ctx: &mut InferContext,
+    fun_generalizations: &mut Vec<FunGeneralization>,
+) -> Result<InferType, YoloscriptError> {
+    let scrutinee_ty = infer_expr(&m.scrutinee, ctx, fun_generalizations)?;
+    let result_var = ctx.fresh_var();
+    for arm in &m.arms {
+        ctx.push_scope();
+        infer_pattern(&arm.pattern, &scrutinee_ty, ctx)?;
+        if let Some(guard) = &arm.guard {
+            let g = infer_expr(guard, ctx, fun_generalizations)?;
+            ctx.add_constraint(g, InferType::bool(), arm.span.clone());
+        }
+        let arm_ty = infer_expr(&arm.body, ctx, fun_generalizations)?;
+        ctx.add_constraint(arm_ty, result_var.clone(), arm.span.clone());
+        ctx.pop_scope();
+    }
+    Ok(result_var)
+}
+
+fn infer_pattern(
+    pattern: &Pattern,
+    scrutinee_ty: &InferType,
+    ctx: &mut InferContext,
+) -> Result<(), YoloscriptError> {
+    let span = pattern_span(pattern);
+    match pattern {
+        Pattern::Wildcard(_) => {}
+        Pattern::Literal(lit, _) => {
+            let lit_ty = infer_literal(lit, ctx);
+            ctx.add_constraint(scrutinee_ty.clone(), lit_ty, span.clone());
+        }
+        Pattern::Binding(name, _) => {
+            ctx.bind_mono(name, scrutinee_ty.clone(), false);
+        }
+        Pattern::Nope(_) => {
+            let fresh = ctx.fresh_var();
+            ctx.add_constraint(
+                scrutinee_ty.clone(),
+                InferType::Named("Perhaps".to_string(), vec![fresh]),
+                span.clone(),
+            );
+        }
+        Pattern::Tuple(pats, _) => {
+            let elem_vars: Vec<InferType> = pats.iter().map(|_| ctx.fresh_var()).collect();
+            ctx.add_constraint(
+                scrutinee_ty.clone(),
+                InferType::Tuple(elem_vars.clone()),
+                span.clone(),
+            );
+            for (pat, elem_ty) in pats.iter().zip(elem_vars.iter()) {
+                infer_pattern(pat, elem_ty, ctx)?;
+            }
+        }
+        Pattern::EnumVariant { path, fields, span: pat_span } => {
+            let [enum_name, variant_name] = path.as_slice() else {
+                return Err(YoloscriptError::type_error(
+                    ErrorCode::E0003,
+                    format!("unresolved pattern path `{}`", path.join("::")),
+                    pat_span,
+                ));
+            };
+            let enum_info = ctx.get_enum(enum_name)
+                .ok_or_else(|| YoloscriptError::type_error(
+                    ErrorCode::E0003,
+                    format!("unknown enum `{enum_name}` in pattern"),
+                    pat_span,
+                ))?
+                .clone();
+            let variant = enum_info.variants.iter()
+                .find(|v| v.name == *variant_name)
+                .ok_or_else(|| YoloscriptError::type_error(
+                    ErrorCode::E0003,
+                    format!("no variant `{variant_name}` on `{enum_name}`"),
+                    pat_span,
+                ))?
+                .clone();
+            let mut remap: HashMap<TypeVar, InferType> = HashMap::new();
+            for &tp in &enum_info.type_params {
+                remap.insert(tp, ctx.fresh_var());
+            }
+            let instantiate_ty = |ty: &InferType| -> InferType {
+                match ty {
+                    InferType::Var(v) => remap.get(v).cloned().unwrap_or_else(|| ty.clone()),
+                    other => other.clone(),
+                }
+            };
+            let type_args: Vec<InferType> = enum_info.type_params.iter()
+                .map(|tp| remap[tp].clone())
+                .collect();
+            ctx.add_constraint(
+                scrutinee_ty.clone(),
+                InferType::Named(enum_name.clone(), type_args),
+                pat_span.clone(),
+            );
+            for field_name in fields {
+                let field_ty = variant.fields.iter()
+                    .find(|(n, _)| n == field_name)
+                    .map(|(_, ty)| instantiate_ty(ty))
+                    .ok_or_else(|| YoloscriptError::type_error(
+                        ErrorCode::E0003,
+                        format!("no field `{field_name}` on `{enum_name}::{variant_name}`"),
+                        pat_span,
+                    ))?;
+                ctx.bind_mono(field_name, field_ty, false);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn pattern_span(pattern: &Pattern) -> &Span {
+    match pattern {
+        Pattern::Wildcard(s) | Pattern::Nope(s) | Pattern::Binding(_, s)
+        | Pattern::Literal(_, s) | Pattern::Tuple(_, s)
+        | Pattern::EnumVariant { span: s, .. } => s,
     }
 }
 
@@ -795,6 +1022,7 @@ struct ConstructCtx<'a> {
     env:        Vec<HashMap<String, Type>>,
     struct_env: HashMap<String, Vec<(String, Type)>>,
     method_env: HashMap<String, HashMap<String, Type>>,
+    enum_env:   &'a HashMap<String, EnumInfo>,
 }
 
 impl<'a> ConstructCtx<'a> {
@@ -803,8 +1031,9 @@ impl<'a> ConstructCtx<'a> {
         scheme_env: &'a SchemeEnv,
         struct_env: HashMap<String, Vec<(String, Type)>>,
         method_env: HashMap<String, HashMap<String, Type>>,
+        enum_env:   &'a HashMap<String, EnumInfo>,
     ) -> Self {
-        Self { subst, scheme_env, env: vec![HashMap::new()], struct_env, method_env }
+        Self { subst, scheme_env, env: vec![HashMap::new()], struct_env, method_env, enum_env }
     }
 
     fn push_scope(&mut self) { self.env.push(HashMap::new()); }
@@ -825,8 +1054,9 @@ fn construct_program(
     scheme_env: &SchemeEnv,
     struct_env: HashMap<String, Vec<(String, Type)>>,
     method_env: HashMap<String, HashMap<String, Type>>,
+    enum_env:   &HashMap<String, EnumInfo>,
 ) -> Result<TypedProgram, YoloscriptError> {
-    let mut ctx = ConstructCtx::new(subst, scheme_env, struct_env, method_env);
+    let mut ctx = ConstructCtx::new(subst, scheme_env, struct_env, method_env, enum_env);
 
     // Hoist resolved function types so forward references work in Pass 2.
     for decl in &program.decls {
@@ -1199,17 +1429,35 @@ fn construct_expr(expr: &Expr, expected_ty: Option<&Type>, ctx: &mut ConstructCt
             })
         }
         Expr::StructLiteral { path, fields, span } => {
-            let struct_name = path.last().unwrap().clone();
+            let type_name = if path.len() == 2 { &path[0] } else { path.last().unwrap() };
             let typed_fields: Vec<(String, TypedExpr)> = fields.iter()
                 .map(|(name, expr)| Ok((name.clone(), construct_expr(expr, None, ctx)?)))
                 .collect::<Result<_, _>>()?;
             Ok(TypedExpr::StructLiteral {
                 path:   path.clone(),
                 fields: typed_fields,
-                ty:     Type::Named(struct_name, vec![]),
+                ty:     Type::Named(type_name.clone(), vec![]),
                 span:   span.clone(),
             })
         }
+        Expr::Path(segments, span) => {
+            let [type_name, member_name] = segments.as_slice() else {
+                return Err(YoloscriptError::internal("invalid path in construct"));
+            };
+            if let Some(ty) = ctx.method_env
+                .get(type_name.as_str())
+                .and_then(|m| m.get(member_name.as_str()))
+                .cloned()
+            {
+                return Ok(TypedExpr::Path(segments.clone(), ty, span.clone()));
+            }
+            Ok(TypedExpr::Path(
+                segments.clone(),
+                Type::Named(type_name.clone(), vec![]),
+                span.clone(),
+            ))
+        }
+        Expr::Match(m) => construct_match(m, ctx),
         Expr::Cast { expr, target_type, span } => {
             let typed_expr = construct_expr(expr, None, ctx)?;
             let ty = resolved_to_type(&type_expr_to_infer(target_type), ctx.subst, span)?;
@@ -1242,6 +1490,100 @@ fn find_loop_break_type(block: &TypedBlock) -> Option<Type> {
         }
     }
     None
+}
+
+fn construct_match(m: &MatchExpr, ctx: &mut ConstructCtx) -> Result<TypedExpr, YoloscriptError> {
+    let scrutinee = construct_expr(&m.scrutinee, None, ctx)?;
+    let scrutinee_ty = scrutinee.ty().clone();
+    let mut typed_arms = vec![];
+    for arm in &m.arms {
+        ctx.push_scope();
+        construct_pattern_bindings(&arm.pattern, &scrutinee_ty, ctx)?;
+        let guard = match &arm.guard {
+            Some(g) => Some(construct_expr(g, None, ctx)?),
+            None    => None,
+        };
+        let body = construct_expr(&arm.body, None, ctx)?;
+        let arm_ty = body.ty().clone();
+        typed_arms.push(TypedMatchArm {
+            pattern: arm.pattern.clone(),
+            guard,
+            body,
+            span: arm.span.clone(),
+        });
+        ctx.pop_scope();
+        let _ = arm_ty;
+    }
+    let expr_type = typed_arms.first()
+        .map(|a| a.body.ty().clone())
+        .unwrap_or(Type::Unit);
+    Ok(TypedExpr::Match(TypedMatchExpr {
+        scrutinee: Box::new(scrutinee),
+        arms: typed_arms,
+        expr_type,
+        span: m.span.clone(),
+    }))
+}
+
+fn construct_pattern_bindings(
+    pattern: &Pattern,
+    scrutinee_ty: &Type,
+    ctx: &mut ConstructCtx,
+) -> Result<(), YoloscriptError> {
+    match pattern {
+        Pattern::Wildcard(_) | Pattern::Literal(_, _) | Pattern::Nope(_) => {}
+        Pattern::Binding(name, _) => {
+            ctx.bind(name, scrutinee_ty.clone());
+        }
+        Pattern::Tuple(pats, _) => {
+            let elems = match scrutinee_ty {
+                Type::Tuple(ts) => ts.clone(),
+                _ => return Err(YoloscriptError::internal("tuple pattern on non-tuple")),
+            };
+            for (pat, elem_ty) in pats.iter().zip(elems.iter()) {
+                construct_pattern_bindings(pat, elem_ty, ctx)?;
+            }
+        }
+        Pattern::EnumVariant { path, fields, span } => {
+            let [enum_name, variant_name] = path.as_slice() else {
+                return Err(YoloscriptError::internal("invalid pattern path"));
+            };
+            let enum_info = ctx.enum_env.get(enum_name.as_str())
+                .ok_or_else(|| YoloscriptError::internal(format!("unknown enum `{enum_name}`")))?
+                .clone();
+            let variant = enum_info.variants.iter()
+                .find(|v| v.name == *variant_name)
+                .ok_or_else(|| YoloscriptError::internal(format!("unknown variant `{variant_name}`")))?
+                .clone();
+            let type_args = extract_type_args_from_type(scrutinee_ty);
+            let mut remap = Substitution::new();
+            for (&tp, arg_ty) in enum_info.type_params.iter().zip(type_args.iter()) {
+                remap.bind(tp, InferType::Concrete(arg_ty.clone()));
+            }
+            let dummy = Span::new(0, 0, "");
+            for field_name in fields {
+                let template_ty = variant.fields.iter()
+                    .find(|(n, _)| n == field_name)
+                    .map(|(_, ty)| ty.clone())
+                    .ok_or_else(|| YoloscriptError::internal(
+                        format!("no field `{field_name}` on variant `{variant_name}`")
+                    ))?;
+                let concrete = infer_type_to_type(&remap.apply(&template_ty), &dummy)?;
+                ctx.bind(field_name, concrete);
+            }
+            let _ = span;
+        }
+    }
+    Ok(())
+}
+
+fn extract_type_args_from_type(ty: &Type) -> Vec<Type> {
+    match ty {
+        Type::Perhaps(t)     => vec![*t.clone()],
+        Type::Result(t, e)   => vec![*t.clone(), *e.clone()],
+        Type::Named(_, args) => args.clone(),
+        _ => vec![],
+    }
 }
 
 /// Build a typed Call expression.
