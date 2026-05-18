@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="logo.png" alt="Yoloscript logo" />
-</p>
-
 # Yoloscript
 
 A Rust-inspired programming language with a tree-walk interpreter written in Rust.
