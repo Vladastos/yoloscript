@@ -81,55 +81,69 @@ See **[AGENTS.md](./AGENTS.md)** for the full agent workflow: task lifecycle, sp
 
 ## Documentation and Task Management
 
-All docs, tasks, milestones, and decision records are managed by the **Backlog.md MCP server**. The data lives under `docs/backlog/`.
+### Task Management — GitHub Issues
 
-Use the Backlog.md MCP tools (or read `backlog://workflow/overview`) to browse and update tasks. Do **not** edit files under `docs/backlog/` directly.
+All tasks are tracked as **GitHub Issues** at https://github.com/Vladastos/yoloscript/issues. Use the `gh` CLI:
 
-### Key Docs (via Backlog.md MCP)
+```bash
+gh issue list                                          # list open tasks
+gh issue list --state closed                           # list done tasks
+gh issue list --milestone "Epic 002 - Evaluator"       # filter by milestone
+gh issue view <number>                                 # read a task
+gh issue create --title "..." --label "..." --milestone "..."  # create a task
+gh issue close <number>                                # mark done
+gh issue comment <number> --body "..."                 # add a note
+gh issue edit <number> --add-label "status:in-progress"        # update labels
+```
 
-| Doc ID | Purpose |
+**Labels:** `evaluator`, `generics`, `traits`, `integration`, `tooling`, `dx`, `migration`, `docs`, `typechecker`, `type-inference`, `architecture`, `priority:low/medium/high`, `status:backlog`, `status:in-progress`, `archived`
+
+**Milestones:** Epic 001–005 and Phase 01–03, matching the original backlog milestone structure.
+
+### Docs and Decisions — backlog/ submodule
+
+Spec documents and decision records live in `backlog/` (to be reorganised into `docs/` in #19). Read them directly — no MCP tooling needed.
+
+| Path | Purpose |
 |---|---|
-| `doc-2` | Language Specification — single source of truth |
-| `doc-3` | Spec Backlog — open design questions and deferred features |
-| `doc-4` | Architecture Overview — pipeline diagram, component boundaries |
-| `doc-5`, `doc-6`, `doc-7` | Type Inference — concepts, implementation guide, roadmap |
-
-Decision records live in `docs/backlog/decisions/`. Milestones (epics and phases) are in `docs/backlog/milestones/`.
+| `backlog/docs/doc-2` | **Language Specification** — single source of truth |
+| `backlog/docs/doc-3` | **Spec Backlog** — open design questions and deferred features |
+| `backlog/docs/doc-4` | **Architecture Overview** — pipeline diagram, component boundaries |
+| `backlog/docs/doc-5`, `doc-6`, `doc-7` | **Type Inference** — concepts, implementation guide, roadmap |
+| `backlog/decisions/` | **Decision records** — why a non-obvious choice was made |
 
 ## Development Principles
 
 ### Spec-First Development
-- The language specification (`doc-2` in Backlog.md MCP) is authoritative
+- The language specification (`backlog/docs/doc-2`) is authoritative
 - Implementation reveals spec ambiguities — resolve in the spec first, then implement
 - Never implement behavior not specified in the spec
 - Tag spec sections when interpreter-validated: `> ✓ Interpreter-validated (v0.1)`
 
 ### Task Management
-- All tasks are managed via the **Backlog.md MCP server** — use its tools to create, update, and close tasks
-- Read `backlog://workflow/overview` (or call `backlog.get_backlog_instructions()`) before creating tasks to avoid duplicates and follow the correct workflow
-- Task statuses: `Backlog` (not in current milestone), `To Do`, `In Progress`, `Done`
-- Every task should link to the relevant spec doc or backlog item
-- **Always commit to the backlog submodule** immediately after creating, updating, or closing a task
-- **The main repo only gets a commit when actual code is written** — task state changes alone do not trigger a main repo commit
-- The backlog submodule and the main repo are committed **separately and never together**
+- All tasks are tracked as **GitHub Issues** — use `gh issue create/view/list/close` to manage them
+- Before creating a task, search first: `gh issue list --search "keyword"` to avoid duplicates
+- Apply labels and a milestone when creating: `--label "evaluator" --milestone "Epic 002 - Evaluator"`
+- Use `gh issue edit <number> --add-label "status:in-progress"` when starting a task
+- **Task state changes require no commit** — GitHub Issues are the source of truth, not files in the repo
+- **The main repo only gets a commit when actual code is written**
 
 ### Commit Message Convention
-- All commits related to a task **must include the task ID** in the message
-- Format: `<type>(<task-id>): <description>`
-- Types: `task` (create/update/close), `feat`, `fix`, `refactor`, `test`, `docs`
-- Examples:
-  - Backlog submodule — `task(TASK-42): create — implement type inference for generics`
-  - Backlog submodule — `task(TASK-42): update — add acceptance criteria`
-  - Backlog submodule — `task(TASK-42): close — implementation complete`
-  - Main repo — `feat(TASK-42): add generic type inference`
-- **Closing commits (both backlog and main repo) must include a body**: a bullet list of what was done
+- All commits related to a task **must include the issue number** in the message
+- Format: `<type>(#<issue>): <description>`
+- Types: `feat`, `fix`, `refactor`, `test`, `docs`
+- Example: `feat(#42): add generic type inference`
+- **Closing commits must include a body**: a bullet list of what was done
   ```
-  task(TASK-42): close — implement generic type inference
+  feat(#42): add generic type inference
 
   - Added unification for generic type variables in typeinference/mod.rs
   - Extended TypeEnv to track generic constraints
   - Added 12 integration tests covering polymorphic functions
+
+  Closes #42
   ```
+- Add `Closes #<number>` in the commit body to auto-close the issue on push
 
 ### Three-Stage Validation
 1. **Designed**: Written in spec, not yet implemented
@@ -148,13 +162,13 @@ Decision records live in `docs/backlog/decisions/`. Milestones (epics and phases
 
 ## Current Development Focus
 
-Check the Backlog.md MCP for the current open tasks and milestone status. The active epics are:
+Check GitHub Issues for open tasks: `gh issue list --milestone "Epic 002 - Evaluator"`. The active epics are:
 
-- **Epic 001** (Typechecker and Typed AST) — largely done; stage 6 typechecking tasks in progress
-- **Epic 002** (Evaluator) — expression and statement evaluation
-- **Epic 003** (Generics and Monomorphization)
-- **Epic 004** (Traits and Method Dispatch)
-- **Epic 005** (Typechecker Integration)
+- **Epic 001** (Typechecker and Typed AST) — complete
+- **Epic 002** (Evaluator) — next up; issues #1–#4
+- **Epic 003** (Generics and Monomorphization) — issues #5–#10
+- **Epic 004** (Traits and Method Dispatch) — issues #11–#13
+- **Epic 005** (Typechecker Integration) — issue #14
 
 ## Error Handling
 

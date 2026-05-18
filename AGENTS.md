@@ -2,7 +2,7 @@
 
 ## Project
 
-Yoloscript is a statically-typed, expression-oriented scripting language. This repository contains its interpreter (Phase 01 PoC). The language spec, architecture docs, task backlog, and decision records all live inside `backlog/` and `yoloscript-docs/`.
+Yoloscript is a statically-typed, expression-oriented scripting language. This repository contains its interpreter (Phase 01 PoC). Tasks are tracked as GitHub Issues; spec docs and decision records live in `backlog/` (to be reorganised into `docs/` — see issue #19).
 
 ---
 
@@ -15,86 +15,88 @@ Yoloscript is a statically-typed, expression-oriented scripting language. This r
 | `backlog/docs/doc-4` | **Architecture Overview** — pipeline diagram, component boundaries |
 | `backlog/docs/doc-5,6,7` | **Type Inference docs** — concepts, implementation guide, roadmap |
 | `backlog/decisions/` | **Decision records** — why a non-obvious choice was made |
-| `backlog/milestones/` | **Milestones** — epics (m-4 to m-8) and phases (m-1 to m-3) |
-| `backlog/tasks/` | **Tasks** — all work items |
+| GitHub Issues | **Tasks** — all work items (`gh issue list`) |
+| GitHub Milestones | **Milestones** — Epic 001–005 and Phase 01–03 |
 
 ---
 
 ## Task Workflow
 
-### Before starting a task (To Do → In Progress)
+### Before starting a task (open → in-progress)
 
-1. **Read the full task description** including all acceptance criteria and the "What" section.
+1. **Read the full issue** including all acceptance criteria: `gh issue view <number>`
 2. **Check the spec** — read every spec section the task touches. Identify anything ambiguous or missing.
-   - If a spec gap exists: **STOP**. Fix the spec first (edit `yoloscript-docs/01-SPEC/LANGUAGE-SPEC.md`). If the fix requires a non-obvious decision, write a decision record first.
-3. **Check existing decisions** — search `backlog/decisions/` for any ADR that governs the area being changed. Read it before writing any code.
-4. **Check dependencies** — verify every listed dependency task is actually done and its implementation matches what this task expects.
+   - If a spec gap exists: **STOP**. Fix the spec first (`backlog/docs/doc-2`). If the fix requires a non-obvious decision, write a decision record first.
+3. **Check existing decisions** — `grep` or `ls` in `backlog/decisions/` for any ADR that governs the area being changed. Read it before writing any code.
+4. **Check dependencies** — verify every linked issue is closed and its implementation matches what this task expects.
 5. **If no clear path forward exists** — STOP. Ask for guidance before beginning implementation. Do not make a significant architectural decision unilaterally.
-6. **Commit** after moving the task to `in-progress`: `task(TASK-ID): start — brief description`
+6. **Mark in-progress**: `gh issue edit <number> --add-label "status:in-progress"`
 
 ### During implementation
 
 - **Follow the spec exactly.** If behaviour is not described in the spec, it does not exist. Add it to the spec before implementing it.
 - **If an ambiguity surfaces mid-implementation**: stop, decide (write a decision record if non-obvious), update the spec, then continue. Never implement an undocumented behaviour and "fix the docs later."
 - **If a spec section turns out to be wrong or impractical**: stop, write a decision record superseding the previous understanding, update the spec, then implement against the updated spec.
-- **Do not expand scope.** If you discover necessary work outside the task boundary, create a new task for it. Finish the current task first unless the out-of-scope work is a hard blocker.
+- **Do not expand scope.** If you discover necessary work outside the task boundary, open a new issue for it. Finish the current task first unless the out-of-scope work is a hard blocker.
 
-### Before marking a task done (In Progress → Done)
+### Before closing a task (in-progress → done)
 
 1. All acceptance criteria must be checked off — no exceptions.
 2. All tests must pass, including tests from earlier tasks.
 3. If any non-obvious decisions were made during implementation → create a decision record.
 4. If the implementation revealed spec gaps that you fixed → verify the spec edit is committed.
 5. If a spec section is now interpreter-validated, tag it: `> ✓ Interpreter-validated (v0.1)`
-6. **Commit** after marking the task `done`: `task(TASK-ID): close — brief summary`
+6. **Close the issue**: `gh issue close <number>` (or include `Closes #<number>` in the commit body to auto-close on push)
 
-### When updating a task
+### Opening a new issue
 
-Whenever you edit a task (change status, add notes, modify acceptance criteria, etc.), **commit immediately** after the update:
-- `task(TASK-ID): update — what changed`
+```bash
+gh issue create \
+  --title "Brief imperative title" \
+  --label "evaluator" \
+  --milestone "Epic 002 - Evaluator" \
+  --body "## Description\n...\n\n## Acceptance Criteria\n- [ ] ..."
+```
+
+Search for duplicates first: `gh issue list --search "keyword"`
 
 ---
 
 ## Commit Convention
 
-Every commit related to a task **must include the task ID**:
+Every commit related to a task **must reference the issue number**:
 
 ```
-<type>(<task-id>): <description>
+<type>(#<number>): <description>
 ```
 
-### Two separate repos — two separate commit streams
+Types: `feat`, `fix`, `refactor`, `test`, `docs`. Commits unrelated to any issue omit the reference: `docs: fix typo in README`.
 
-The backlog lives in a git submodule (`docs/backlog/`). The main repo and the backlog submodule are **always committed separately**:
+### One commit stream — main repo only
 
-- **Backlog submodule**: commit on every task state change (create, start, update, close)
-- **Main repo**: commit only when actual source code is written — never solely because a task changed state
-
-Never bundle a backlog commit and a code commit into one. Stage and commit each repo independently.
+Task state changes happen on GitHub Issues, not in the repo. **The main repo only gets a commit when actual code or docs are written.**
 
 ### Commit reference table
 
-| Situation | Repo | Type | Example |
-|---|---|---|---|
-| Create a task | backlog | `task` | `task(TASK-42): create — implement generic type inference` |
-| Start a task (→ in-progress) | backlog | `task` | `task(TASK-42): start — begin implementation` |
-| Update a task | backlog | `task` | `task(TASK-42): update — add acceptance criteria` |
-| Close a task (→ done) | backlog | `task` | `task(TASK-42): close — implementation complete` |
-| Code change for a task | main | `feat` / `fix` / `refactor` / `test` / `docs` | `feat(TASK-42): add generic type inference` |
-
-Commits not related to any task omit the task ID and use the type prefix alone: `docs: fix typo in README`.
+| Situation | Type | Example |
+|---|---|---|
+| Code change for a task | `feat` / `fix` / `refactor` / `test` | `feat(#42): add generic type inference` |
+| Spec or doc edit | `docs` | `docs(#42): clarify let-polymorphism in §4.2` |
+| Decision record | `docs` | `docs: add decision — unify type var generation` |
 
 ### Closing commits require a body
 
-When closing a task, **both** the backlog commit and the main repo commit must include a body with a bullet list of what was done:
-
 ```
-task(TASK-42): close — implement generic type inference
+feat(#42): add generic type inference
 
 - Added unification for generic type variables in typeinference/mod.rs
 - Extended TypeEnv to track generic constraints
 - Added 12 integration tests covering polymorphic functions
+
+Closes #42
 ```
+
+`Closes #42` in the body auto-closes the issue when the commit lands on main.
 
 ---
 
@@ -115,7 +117,7 @@ When you stop, explain clearly: what you found, what the options are, and what y
 
 ## Decision Records
 
-Create a decision record (`backlog decision create`) when:
+Create a decision record (a new `.md` file in `backlog/decisions/`, following the naming and format of existing records) when:
 
 - Multiple reasonable implementation options existed and the choice was non-trivial.
 - The rationale will matter when revisiting this area later.
@@ -146,38 +148,8 @@ Accepted decisions are never modified. To reverse one, create a new decision rec
 - Do not implement behaviour that is not in the spec.
 - Do not let implementation diverge from the spec and fix the docs later.
 - Do not add rationale or history to the spec — that belongs in a decision record.
-- Do not create new tracking documents — all open work goes into the backlog.
+- Do not create new tracking documents — all open work goes into GitHub Issues.
 - Do not start implementation if the task description has unresolved questions.
 - Do not mark a task done with unchecked acceptance criteria.
 - Do not make significant architectural decisions alone — ask first.
 
----
-
-<!-- BACKLOG.MD MCP GUIDELINES START -->
-
-<CRITICAL_INSTRUCTION>
-
-## BACKLOG WORKFLOW INSTRUCTIONS
-
-This project uses Backlog.md MCP for all task and project management activities.
-
-**CRITICAL GUIDANCE**
-
-- If your client supports MCP resources, read `backlog://workflow/overview` to understand when and how to use Backlog for this project.
-- If your client only supports tools or the above request fails, call `backlog.get_backlog_instructions()` to load the tool-oriented overview. Use the `instruction` selector when you need `task-creation`, `task-execution`, or `task-finalization`.
-
-- **First time working here?** Read the overview resource IMMEDIATELY to learn the workflow
-- **Already familiar?** You should have the overview cached ("## Backlog.md Overview (MCP)")
-- **When to read it**: BEFORE creating tasks, or when you're unsure whether to track work
-
-These guides cover:
-- Decision framework for when to create tasks
-- Search-first workflow to avoid duplicates
-- Links to detailed guides for task creation, execution, and finalization
-- MCP tools reference
-
-You MUST read the overview resource to understand the complete workflow. The information is NOT summarized here.
-
-</CRITICAL_INSTRUCTION>
-
-<!-- BACKLOG.MD MCP GUIDELINES END -->
